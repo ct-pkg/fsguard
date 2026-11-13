@@ -10,5 +10,6 @@
 
 - [提案原文](docs/proposal.md)
 - [评估结论](docs/analysis.md)
+- [需求分析](docs/requirements.md)
 - [设计待决项](docs/design.md)
 - [会话映射](docs/session-map.md)
