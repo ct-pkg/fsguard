@@ -1,0 +1,123 @@
+# fsguard 判据命令块（R-01…R-17）
+
+> 现状：fsguard 包未实现，下列 `ct ...` 命令在实现后执行；`bash tools/check.sh g1-command` 只做结构校验（每条 R 有 `$ ` 命令 + `rc=`），不做行为执行。现在不能跑是因为包不存在，不是因为可以跳过。
+
+## R-01 包形态与文件分工
+
+```console
+$ ct build examples/fsguard/r01_packaging.ct
+# rc=0
+```
+
+## R-02 错误码枚举
+
+```console
+$ ct run test/fsguard/r02_errors.ct
+# rc=0
+```
+
+## R-03 命名共存
+
+```console
+$ ct build examples/fsguard/r03_name_coexist.ct
+# rc=0
+```
+
+## R-04 分块读
+
+```console
+$ ct run test/fsguard/r04_read_chunk.ct
+# rc=0
+```
+
+## R-05 词法规范化
+
+```console
+$ ct run test/fsguard/r05_normalize.ct
+# rc=0
+```
+
+## R-06 段边界判定
+
+```console
+$ ct run test/fsguard/r06_is_under.ct
+# rc=0
+```
+
+## R-07 遍历与深度
+
+```console
+$ ct run test/fsguard/r07_walk.ct
+# rc=0
+```
+
+## R-08 生命周期与所有权
+
+```console
+$ ct run test/fsguard/r08_lifecycle.ct
+# rc=0
+```
+
+## R-09 check 判定顺序
+
+```console
+$ ct run test/fsguard/r09_check.ct
+# rc=0
+```
+
+## R-10 策略配置
+
+```console
+$ ct run test/fsguard/r10_policy.ct
+# rc=0
+```
+
+## R-11 FsError 契约
+
+```console
+$ ct run test/fsguard/r11_error_contract.ct
+# rc=0
+```
+
+## R-12 读写包装
+
+```console
+$ ct run test/fsguard/r12_io.ct
+# rc=0
+```
+
+## R-13 FsGuard 遍历
+
+```console
+$ ct run test/fsguard/r13_guard_walk.ct
+# rc=0
+```
+
+## R-14 errno 映射
+
+```console
+$ ct run test/fsguard/r14_errno_map.ct
+# rc=0
+```
+
+## R-15 POSIX 平台边界
+
+```console
+$ ct run test/fsguard/r15_posix.ct
+# rc=0
+```
+
+## R-16 std::fs 零改动
+
+```console
+$ ct run test/fsguard/r16_std_fs_untouched.ct
+# rc=0
+```
+
+## R-17 夹具与门禁
+
+```console
+$ bash tools/check.sh g7-asan
+# rc=0
+# Linux 追加：ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak
+```
