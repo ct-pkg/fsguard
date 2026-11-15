@@ -1,0 +1,190 @@
+namespace fsguard;
+
+#include <stdlib.h>
+#include <string.h>
+
+#include "fsguard/FsGuardOps.shim.h"
+
+/*
+ * 错误码（R-02）：10 个成员，名字与数值冻结，后续只追加。
+ * 不用 #define：CT 没有预处理器，`.h.ct` 里的常量必须是 pub enum。
+ */
+pub enum FsErrCode {
+    FS_OK = 0,
+    FS_ERR_NOT_FOUND = 1,
+    FS_ERR_PERMISSION = 2,
+    FS_ERR_OUT_OF_BOUNDS = 3,
+    FS_ERR_DENIED_PATTERN = 4,
+    FS_ERR_IS_DIR = 5,
+    FS_ERR_NOT_DIR = 6,
+    FS_ERR_BUFFER_TOO_SMALL = 7,
+    FS_ERR_IO = 8,
+    FS_ERR_OOM = 9
+}
+
+/* last_error() 的返回体；由 FsGuard 独占，调用方不得 free。 */
+pub struct FsError {
+    int code;
+    char *path;
+    char *message;
+}
+
+/*
+ * 有状态策略（R-09 的 check 部分）。
+ *
+ * `_policy_enabled` 不是字段：策略是否启用由三个指针派生
+ * `(_root != 0 || _allow_prefix != 0 || _deny_pattern != 0)`。
+ */
+pub struct FsGuard {
+    char *_root;
+    char *_allow_prefix;
+    char *_deny_pattern;
+    int _max_depth;
+    FsError _last_error;
+    int _has_error;
+} use Drop;
+
+static char *fsg_dup(char *s)
+{
+    size_t n;
+    char *p;
+
+    if (s == 0) return 0;
+    n = strlen(s) + 1;
+    p = malloc(n);
+    if (p == 0) return 0;
+    memcpy(p, s, n);
+    return p;
+}
+
+static void fsg_error_clear(FsGuard *g)
+{
+    free(g->_last_error.path);
+    free(g->_last_error.message);
+    g->_last_error.code = 0;
+    g->_last_error.path = 0;
+    g->_last_error.message = 0;
+    g->_has_error = 0;
+}
+
+static int fsg_error_set(FsGuard *g, int code, char *path, char *message)
+{
+    g->_last_error.code = code;
+    g->_last_error.path = fsg_dup(path != 0 ? path : "");
+    g->_last_error.message = fsg_dup(message != 0 ? message : "fsguard error");
+    g->_has_error = 1;
+    return code;
+}
+
+impl FsGuard {
+    /*
+     * 判定顺序冻结（R-09）：① 规范化 → ② root 段边界 → ③ allow 前缀
+     * → ④ deny glob → ⑤ FS_OK。纯词法，不访问文件系统。
+     */
+    pub int check(char *path)
+    {
+        char norm[FSGO_PATH_MAX];
+
+        fsg_error_clear(self);
+        if (path == 0)
+            return fsg_error_set(self, FS_ERR_IO, "", "null path");
+        if (fsgo_normalize(path, norm, FSGO_PATH_MAX) != 0)
+            return fsg_error_set(self, FS_ERR_IO, "", "path too long or overlapping buffer");
+        if (self->_root != 0 && !fsgo_is_under(norm, self->_root))
+            return fsg_error_set(self, FS_ERR_OUT_OF_BOUNDS, norm, "path escapes root");
+        if (self->_allow_prefix != 0 && !fsgo_is_under(norm, self->_allow_prefix))
+            return fsg_error_set(self, FS_ERR_OUT_OF_BOUNDS, norm, "path outside allow prefix");
+        if (self->_deny_pattern != 0 && fsgo_match(norm, self->_deny_pattern))
+            return fsg_error_set(self, FS_ERR_DENIED_PATTERN, norm, "path matches deny pattern");
+        return FS_OK;
+    }
+
+    pub int has_error()
+    {
+        return self->_has_error;
+    }
+
+    pub FsError *last_error()
+    {
+        if (self->_has_error == 0) return 0;
+        return &self->_last_error;
+    }
+
+    pub void clear_error()
+    {
+        fsg_error_clear(self);
+    }
+
+    pub FsGuard *allow_prefix(char *prefix)
+    {
+        char norm[FSGO_PATH_MAX];
+        char *copy;
+
+        if (prefix == 0) return 0;
+        if (fsgo_normalize(prefix, norm, FSGO_PATH_MAX) != 0) return 0;
+        copy = fsg_dup(norm);
+        if (copy == 0) return 0;
+        free(self->_allow_prefix);
+        self->_allow_prefix = copy;
+        return self;
+    }
+
+    pub FsGuard *deny_pattern(char *glob)
+    {
+        char *copy;
+
+        if (glob == 0) return 0;
+        copy = fsg_dup(glob);
+        if (copy == 0) return 0;
+        free(self->_deny_pattern);
+        self->_deny_pattern = copy;
+        return self;
+    }
+}
+
+impl Drop for FsGuard {
+    void drop()
+    {
+        free(self->_root);
+        free(self->_allow_prefix);
+        free(self->_deny_pattern);
+        free(self->_last_error.path);
+        free(self->_last_error.message);
+    }
+}
+
+/*
+ * 工厂：ct 0.44.1 不能把 `static FsGuard *new` 声明成可跨单元的静态方法，
+ * 因此用自由函数（卡 H-2）。root 为 0 时不做根约束。
+ */
+pub FsGuard *fsguard_new(char *root);
+
+FsGuard *fsguard_new(char *root)
+{
+    FsGuard *g;
+    char norm[FSGO_PATH_MAX];
+
+    g = malloc(sizeof(FsGuard));
+    if (g == 0) return 0;
+    g->_root = 0;
+    g->_allow_prefix = 0;
+    g->_deny_pattern = 0;
+    g->_max_depth = 16;
+    g->_last_error.code = 0;
+    g->_last_error.path = 0;
+    g->_last_error.message = 0;
+    g->_has_error = 0;
+
+    if (root != 0) {
+        if (fsgo_normalize(root, norm, FSGO_PATH_MAX) != 0) {
+            free(g);
+            return 0;
+        }
+        g->_root = fsg_dup(norm);
+        if (g->_root == 0) {
+            free(g);
+            return 0;
+        }
+    }
+    return g;
+}

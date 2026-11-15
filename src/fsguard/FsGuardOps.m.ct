@@ -1,0 +1,20 @@
+namespace fsguard;
+
+#include "fsguard/FsGuardOps.shim.h"
+
+/*
+ * char * 上的无状态词法原语（R-05、R-06）。
+ *
+ * 写成 pub trait + map trait：trait 声明方法面，map 把接收者绑定到 char *
+ * 并转发到 shim。本单元是 `.m.ct`（静态映射单元），不产头文件，调用方只
+ * 需要 import 它就能在字符串上调用这两个方法。
+ */
+pub trait FsGuardOps {
+    int normalize_to(char *out, int cap);
+    int is_under(char *prefix);
+}
+
+map trait FsGuardOps for type char * {
+    normalize_to(s, out, cap) -> fsgo_normalize(s, out, cap);
+    is_under(s, prefix)       -> fsgo_is_under(s, prefix);
+}

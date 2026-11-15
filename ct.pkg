@@ -1,0 +1,14 @@
+# fsguard - 策略感知的文件系统层（词法核心）
+#
+# 本包分两半：`char *` 上的无状态词法原语（read_chunk / normalize_to /
+# walk / is_under），以及 `FsGuard *` 上的有状态策略（check / 读写 /
+# 遍历）。当前 PH-01 只落词法核心：错误码、normalize_to、is_under、
+# check；读写与遍历分别在 PH-02、PH-03。
+#
+# 平台：POSIX（macOS / Linux）。Win32 不在本轮范围。
+# 绑定：`.h.ct` 放公开类型与 impl，`.m.ct` 放静态映射宿主，C 适配层
+# 在 `FsGuardOps.shim.h`。
+name = fsguard
+version = 0.1.0
+licence = MIT
+requires = ct >= 0.44.1
