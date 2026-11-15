@@ -5,7 +5,7 @@
 
 ## 0 结论
 
-需求已可进入 roadmap 与 phase 规划，但不能进入实施：17 条中 13 条可验收、4 条部分可验收（R-02/R-12/R-14/R-17）。**PH-01 是「路径词法与错误枚举」起步相。**
+需求已可进入 roadmap 与 phase 规划，但不能进入实施：17 条中 15 条可验收、2 条部分可验收（R-02/R-17）。**PH-01 是「路径词法与错误枚举」起步相。**
 
 ## 1 相划分
 
@@ -63,7 +63,7 @@
   - R-03 四个方法名与 22 个 std 名字无交集；同名时限定调用。
   - R-15 只接受 `/`；`a\b` 字面处理；无 Win32 分支。
   - R-16 `std::fs` 零改动；不暴露同名方法。
-  - R-17 夹具运行时生成、入门禁；macOS `g7-asan` 绿、Linux `g7-leak` 绿。
+  - R-17 夹具运行时生成、入门禁；macOS `g7-asan` 绿、`g7-leak` 打 SKIP；Linux `g7-leak` 绿并把实测记录回填（`g7-lsan-record` 绿）。
 - **前置**：PH-01、PH-02、PH-03。
 
 ## 3 未决项归属
@@ -73,7 +73,7 @@
 | Q-2（`write_file` 失败半截） | PH-02 | 裁 D-006 后补 R-12 判据 |
 | `FS_ERR_NOT_DIR` | PH-01 | 映射 `ENOTDIR` 或删除成员，二选一 |
 | `ELOOP` | PH-02 | R-14 表加归类 + 环用例 |
-| LSan（macOS） | PH-04 | Linux CI 跑 `g7-leak`；macOS 记 `deviation` |
+| LSan 记录未回填 | PH-04 | Linux 跑 `ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak`，把 host、命令与原始输出回填 `docs/reviews/fsguard-lsan-linux.md`；`g7-lsan-record` 判红直到记录存在 |
 | FSR-15（walk 根缺失） | PH-03 | 补「根不存在」判据 |
 | FSR-16（`normalize_to` 重叠） | PH-01 | 检测重叠并返回 -1 |
 

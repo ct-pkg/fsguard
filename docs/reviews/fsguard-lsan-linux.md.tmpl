@@ -1,0 +1,17 @@
+# Linux LSan 实测记录（R-17 判据 5）
+
+> 这是模板，不是记录。复制为 `docs/reviews/fsguard-lsan-linux.md` 后填真实值；
+> 占位符（`<...>`）会被 `g7-lsan-record` 判红，Darwin 的 SKIP 不能当记录。
+
+host: Linux <uname -srm 的原始输出>
+date: <YYYY-MM-DD>
+
+command: `ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak`
+
+## 原始输出摘要
+
+```console
+$ ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak
+<在此粘贴原始输出；其中必须真实出现下面这一行（模板里故意加了前缀，复制后要删掉前缀）>
+# expected: PASS: g7-leak: Linux ASan+LSan caught the leak
+```

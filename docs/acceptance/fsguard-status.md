@@ -5,7 +5,7 @@
 
 ## 1 结论
 
-**PH-01/PH-02/PH-03 已收口：遍历与策略已落地。** 需求口径上 17 条中 15 条可验收、2 条部分可验收（R-02/R-17）、0 条不可验收。剩余两项均已写明缺项与归属：R-02 缺 `FsErrCode::FS_ERR_*` 限定名（ct 0.44.1 不可表达，H-2 → PH-04）、R-17 缺一次 Linux 上的 LSan 绿（→ PH-04 / Linux CI）。H-7 已由 D-010 关闭。
+**PH-01/PH-02/PH-03 已收口：遍历与策略已落地。** 需求口径上 17 条中 15 条可验收、2 条部分可验收（R-02/R-17）、0 条不可验收。剩余两项均已写明缺项与归属：R-02 缺 `FsErrCode::FS_ERR_*` 限定名（ct 0.53.0 仍不可表达，H-2 → PH-04）、R-17 缺 Linux LSan 实测记录回填（→ PH-04 / Linux CI）。H-7 已由 D-010 关闭。
 
 ## 2 威胁模型五处（承接 FSR-02…06）
 
@@ -30,7 +30,7 @@
 | `FS_ERR_NOT_DIR` | 已收口（D-009） | `ENOTDIR → NOT_DIR`，R-02/R-14 可验收 |
 | `ELOOP` | 已收口（D-009） | 归 `FS_ERR_IO`，PH-02 有环用例 |
 | H-7 | 已关闭（D-010） | R-11 判据 3 改为可核对条款，不再挂「部分」 |
-| LSan（macOS） | 平台化降级 | R-17 本机不能完整自证 |
+| LSan | 记录未回填 | R-17 判据 5 待 Linux 实测记录；`g7-lsan-record` 当前红 |
 
 ## 4 R 状态
 
@@ -52,7 +52,7 @@
 | R-14 | **可验收** | `ENOTDIR → NOT_DIR`、`ELOOP → IO`（D-009）；`g3-ph02 r14` 绿 |
 | R-15 | 可验收 | POSIX 边界已定 |
 | R-16 | 可验收 | `std::fs` 零改动判据已定 |
-| R-17 | 部分 | 判据 1–4 本机可执行（运行时夹具、门禁覆盖、集合排序、ASan）；**缺项**：判据 5 的 LSan 在 Darwin 不可执行；**归属 PH-04 / Linux CI**，缺一次 `ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 绿 |
+| R-17 | 部分 | 判据 1–4 本机可执行（运行时夹具、门禁覆盖、集合排序、ASan）；**缺项**：判据 5 的 LSan 结论只能由 Linux 给出，当前**缺 Linux 实测记录回填**（`g7-lsan-record` 红）；**归属 PH-04 / Linux CI**：Linux 跑 `ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 后按 `docs/reviews/fsguard-lsan-linux.md.tmpl` 回填 |
 
 ## 5 锚点说明
 
@@ -101,9 +101,11 @@
 
 ## 7 泄漏与平台
 
-- Darwin：`bash tools/check.sh g7-leak` 只能 `DEFERRED rc=3`；PH-01/PH-02/PH-03 的「无内存泄漏」记 **待 Linux 补跑**，不得记通过。
-- Linux 补跑命令：`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak`。
+- Darwin：`bash tools/check.sh g7-leak` 打印 SKIP（原因 + Linux 命令 + 回填路径）并以 **rc=0** 结束；SKIP 不是泄漏结论。
+- 泄漏结论只认 Linux 记录：`bash tools/check.sh g7-lsan-record` 校验 `docs/reviews/fsguard-lsan-linux.md` 含 `host: Linux …`、确切命令与 `PASS: g7-leak: Linux ASan+LSan caught the leak` 原文；缺记录或占位符判红。**当前红，等 Linux 回填**。
+- Linux 补跑：`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak`，按 `docs/reviews/fsguard-lsan-linux.md.tmpl` 回填后再跑 `g7-lsan-record`。
 - 本机可跑：`bash tools/check.sh g7-asan`（干净夹具 rc=0，UAF 被捕获；已加看门狗，`asan_uaf` 不退出也会被收口）。
+- `all`：Darwin 上 `g7-leak` 为 rc=0，`all` 因此 rc=0；SKIP 不是结论，`g7-lsan-record` 需单独跑，**当前红**（防呆项，PH-04 收口前必须转绿）。
 
 ## 8 与 `ct-pkg/std` 的关系（D-011）
 

@@ -119,7 +119,12 @@ $ ct run test/fsguard/r16_std_fs_untouched.ct
 ```console
 $ bash tools/check.sh g7-asan
 # rc=0
-# Linux 追加：ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak
+# Darwin: bash tools/check.sh g7-leak
+# SKIP（无 LSan），rc=0
+# Linux: ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak
+# PASS: g7-leak: Linux ASan+LSan caught the leak
+# 回填 docs/reviews/fsguard-lsan-linux.md 后：bash tools/check.sh g7-lsan-record
+# rc=0
 ```
 
 ## 附：与 std 的语义差异（D-011）

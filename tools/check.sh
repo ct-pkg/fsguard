@@ -318,8 +318,11 @@ g6_contract() {
   grep -q 'G5: missing' "$ROOT/tools/check.sh" || fail "G6: g5 failure lacks G5 id"
   awk '/^pass\(\)/ { if ($0 ~ /exit/) bad = 1 } END { exit bad }' "$ROOT/tools/check.sh" \
     || fail "G6: pass() exits, all-mode truncates after the first gate"
-  grep -q '( g7_leak )' "$ROOT/tools/check.sh" || fail "G6: all-mode must isolate g7_leak deferred rc=3"
-  pass "g6-contract: broken copies yield G0/D-002 and G1/R-09; G4/G5/G7 ids present; all-mode continuous"
+  grep -q '( g7_leak )' "$ROOT/tools/check.sh" || fail "G6: all-mode must isolate g7_leak so a skip/fail cannot truncate all"
+  grep -q 'g7_lsan_record' "$ROOT/tools/check.sh" || fail "G6: g7-lsan-record must stay wired (Darwin SKIP is not an exemption)"
+  grep -q "run 'bash tools/check.sh g7-lsan-record'" "$ROOT/tools/check.sh" \
+    || fail "G6: all-mode must point at g7-lsan-record so SKIP is never silent"
+  pass "g6-contract: broken copies yield G0/D-002 and G1/R-09; G4/G5/G7 ids present; all-mode continuous; lsan record enforced"
 }
 
 g7_asan() {
@@ -395,15 +398,44 @@ g7_leak() {
         cat "$TMP/leak.out"
         fail "G7:F2 ASan with detect_leaks=0 failed rc=$rc"
       fi
-      echo "DEFERRED: LSan is not supported on Darwin; leak gate delegated to Linux CI."
-      echo "Linux command: ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak"
-      exit 3
+      echo "SKIP: LSan is not supported on Darwin (ASan here has no leak detection); no leak verdict from this host."
+      echo "SKIP: on Linux run: ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak"
+      echo "SKIP: then record host + command + raw output in docs/reviews/fsguard-lsan-linux.md (checked by g7-lsan-record)"
+      pass "g7-leak: SKIP on Darwin (no LSan); Linux record required"
       ;;
     *)
-      echo "DEFERRED: unsupported OS $(uname -s); LSan gate not run."
-      exit 3
+      echo "SKIP: LSan gate is not available on $(uname -s); no leak verdict from this host."
+      echo "SKIP: on Linux run: ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak"
+      echo "SKIP: then record host + command + raw output in docs/reviews/fsguard-lsan-linux.md (checked by g7-lsan-record)"
+      pass "g7-leak: SKIP on $(uname -s); Linux record required"
       ;;
   esac
+}
+
+# R-17 判据 5 的防呆：Darwin 的 SKIP 不是泄漏结论，必须有 Linux 实测记录。
+LSAN_RECORD="docs/reviews/fsguard-lsan-linux.md"
+
+g7_lsan_record() {
+  if [ ! -f "$LSAN_RECORD" ]; then
+    fail "G7:LSAN-RECORD missing $LSAN_RECORD
+  fix: on Linux run 'ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak',
+       then copy docs/reviews/fsguard-lsan-linux.md.tmpl and fill host + command + verbatim output
+       (must contain 'PASS: g7-leak: Linux ASan+LSan caught the leak').
+  A Darwin SKIP is not a record; do not commit placeholders."
+  fi
+  hostline=$(grep '^host: ' "$LSAN_RECORD" | head -1)
+  case "$hostline" in
+    "host: Linux "*) ;;
+    *) fail "G7:LSAN-RECORD host line must be 'host: Linux <uname -srm>' (got: ${hostline:-<none>})" ;;
+  esac
+  case "$hostline" in
+    *"<"*|*">"*) fail "G7:LSAN-RECORD host line still contains a placeholder: $hostline" ;;
+  esac
+  grep -q 'ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak' "$LSAN_RECORD" \
+    || fail "G7:LSAN-RECORD missing the exact command: ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak"
+  grep -q '^PASS: g7-leak: Linux ASan+LSan caught the leak$' "$LSAN_RECORD" \
+    || fail "G7:LSAN-RECORD missing verbatim output line: PASS: g7-leak: Linux ASan+LSan caught the leak"
+  pass "g7-lsan-record: Linux LSan record present with host, command and output"
 }
 
 case "$CASE" in
@@ -417,7 +449,8 @@ case "$CASE" in
   g5-anchor) g5_anchor; exit 0 ;;
   g6-contract) g6_contract; exit 0 ;;
   g7-asan) g7_asan; exit 0 ;;
-  g7-leak) g7_leak ;;
+  g7-leak) g7_leak; exit 0 ;;
+  g7-lsan-record) g7_lsan_record; exit 0 ;;
   all)
     g0_decisions
     g1_command
@@ -429,18 +462,17 @@ case "$CASE" in
     g5_anchor
     g6_contract
     g7_asan
-    # g7_leak 自己会 exit 3，放子 shell 里取值，避免 all 在第 11 个门禁处被截断。
+    # g7_leak 在 Darwin 只 SKIP；Linux 失败时仍以子 shell 取值，避免 all 被截断。
     ( g7_leak ); leak_rc=$?
-    if [ "$leak_rc" -eq 0 ]; then
-      exit 0
-    elif [ "$leak_rc" -eq 3 ]; then
-      echo "note: 泄漏门禁 deferred（rc=3）；all 不以 0 收口"
-      exit 3
+    [ "$leak_rc" -eq 0 ] || exit "$leak_rc"
+    # SKIP 不是泄漏结论：单独跑 g7-lsan-record 才给结论；all 在 Darwin 上仍以 0 收口。
+    if [ "$(uname -s)" = "Darwin" ]; then
+      echo "NOTE: g7-leak SKIPped on Darwin; run 'bash tools/check.sh g7-lsan-record' — red until a Linux record lands."
     fi
-    exit "$leak_rc"
+    exit 0
     ;;
   *)
-    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g3-ph03 [r07|r10|r13]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|all}"
+    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g3-ph03 [r07|r10|r13]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|g7-lsan-record|all}"
     exit 2
     ;;
 esac
