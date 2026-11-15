@@ -159,17 +159,18 @@ RC=1
 | E-4 | 通过 | §4 `r18` rc=0，3 checks |
 | E-5 | 通过 | §5 `g3-ph04 all` rc=0 |
 | E-6 | 通过 | §6 `ALL_RC=0`；`g7-leak` 在 Darwin SKIP（不记泄漏结论） |
-| E-7 | 通过 | §3/§6：卡内含 `ns-root`、`Type::Member`、`一台 Linux`、`PH-04 不得收口`；`g3-ph04 all` rc=0 |
-| E-8 | 成立（不收口） | 前半全绿但后半四项仍挂起；`docs/phases/PH-04/card.md` 保持 `status: in-progress` |
+| E-7 | 通过 | §3/§6：卡内含 `ns-root`、`Type::Member`、`一台 Linux`、`PH-04 不得收口`；`g3-ph04 all` rc=0。判据枚举已由 D-013 收紧为 R-03/R-17 两项，标记词保留 |
+| E-8 | 成立（不收口） | 前半全绿；R-03/R-17 仍挂起（D-013 后口径），`docs/phases/PH-04/card.md` 保持 `status: in-progress` |
 | E-9 | 成立 | §8 每项任务的验收命令独立，不借整相全绿 |
 
-## 10 后半四项：仍挂起（无通过证据）
+## 10 后半处置（D-013 后：两项挂起、两项移出）
 
-| 项 | 状态 | 阻塞点（可核对） |
+| 项 | 状态 | 阻塞点或去向（可核对） |
 | --- | --- | --- |
-| R-01 判据 2/3 | 挂起 | `ct install` 只打印 `-I vendor/fsguard`，单元在 `src/fsguard/`，消费者实测 `cannot resolve import 'fsguard/FsGuard'`；等 `ns-root`/包机制能标准安装 |
+| R-01 判据 2/3 | **已移出（D-013）** | 上游阻塞已解除：PKG-2 已解决（v0.55.0 `ns-root`、v0.58.0 读 lock），本机 v0.58.0 实测 `ct install` 打印 `-I …/src`、`ct build` 不再报 `cannot resolve import`；剩余为本仓 `publisher`/`ns-root` 未提交与消费者夹具，转打包 1.1 + PH-05 首任务 |
 | R-03 判据 1/2/3 | 挂起 | 需共享库机制支持两个 `map trait` 同名方法与 `FsGuardOps::walk(...)` 限定调用；期间 `g3-ph04 all` 只核对卡内标注 |
-| R-02 限定名 | 挂起 | 当前 `ct v0.58.0` 仍不支持，见下方探针；卡内挂起条件成立 |
+| R-02 限定名 | **已移出（D-013）** | 当前 `ct v0.58.0` 仍不支持，见下方探针；上游 LANG-15 open，排 PH-57 / v0.59.0，转 PH-05 并写死触发条件 |
+| R-17 Linux LSan | 挂起 | 无 Linux 主机，`docs/reviews/fsguard-lsan-linux.md` 不存在；`g7-lsan-record` rc=1 |
 
 R-02 探针（`/tmp` 临时文件，不改仓库）：
 
@@ -182,16 +183,23 @@ int main(void) {
     printf("%d\n", c);
     return 0;
 }
-$ cd /tmp/r02probe && ~/.local/bin/ct build probe.ct -I /Users/samxx/trae-ws/ct-fsguard/src --cflags "-I/Users/samxx/trae-ws/ct-fsguard/src" -o probe
-probe.ct:4:40: error: no variable of that name in that namespace (qualified type names are not supported; use the bare name or an alias import)
+$ ~/.local/bin/ct build /tmp/r02probe/probe.ct -I src --cflags "-Isrc" -o /tmp/r02probe/probe   # 在仓库根执行
+/tmp/r02probe/probe.ct:4:40: error: no variable of that name in that namespace (qualified type names are not supported; use the bare name or an alias import)
 BUILD_RC=1
 ```
 
-结论：能力缺口从 `0.53.0` 延期到 `0.58.0` 仍未解除，R-02 判据的限定名断言继续挂起；卡面仍写 `0.53.0` 属事实陈旧，但不改变挂起结论。
+结论：能力缺口在 `ct v0.58.0` 仍未解除；按 D-013，R-02 移出 PH-04、转 PH-05，触发 `ct >= v0.59.0` 后复跑；卡面已同步为 v0.58.0 实测口径。
 | R-17 Linux LSan | 挂起 | 无 Linux 主机，`docs/reviews/fsguard-lsan-linux.md` 不存在；`g7-lsan-record` rc=1 |
 
 R-02 一项本轮只复述卡面挂起条件，未做「是否已支持」的新判定；若需提前解锁，需单独跑 `test/fsguard/r02_errors.ct` 的限定名用例并更新判据。
 
 ## 11 版本链断裂：已立案，本轮不修
 
-`ct.pkg:14` 为 `version = 0.1.0`，而 PH-02/03/04 卡的 `version-minor` 分别是 2/3/4；PH-02、PH-03 收口未移动版本，仓库无 CHANGELOG、无版本 tag、`AGENTS.md` 0.3 记「无偏离」。按 6.7 V-1/V-6 立案：`issues/FSG-01.md`（`status: open`）。本轮不 bump、不打 tag、不登记偏离。
+`ct.pkg:14` 为 `version = 0.1.0`，而 PH-02/03/04 卡的 `version-minor` 分别是 2/3/4；PH-02、PH-03 收口未移动版本，仓库无 CHANGELOG、无版本 tag。按 6.7 V-1/V-6 立案：`issues/FSG-01.md`（`status: open`）。用户已裁定「一次性补号」，登记为 `AGENTS.md` 0.3 的 `DEV-001`（PH-04 收口时 `0.1.0 → 0.4.0`）；本轮不 bump、不打 tag。
+
+## 12 R-01 2/3 与 R-02 的裁定落地
+
+- battle：`docs/reviews/fsguard-r01-r02-battle.md`（B-002，裁定 C）
+- 决策：`docs/decisions/D-013.md`（签字：主控（用户授权 2026-11-16 battle））
+- 卡面：`docs/phases/PH-04/card.md` 的「后半」表与 E-7/E-8 已收紧为 R-03/R-17；去向见卡内「裁定记录」
+- 上游事实：ct-lang `PKG-2` 已解决、`PKG-6` open、`LANG-15` open（PH-57 → v0.59.0）；本机 `ct v0.58.0` 实测见 B-002 §1.2
