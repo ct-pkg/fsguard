@@ -105,10 +105,10 @@ roadmap: docs/planning/fsguard-roadmap.md
 
 | 项 | 结果 |
 | --- | --- |
-| E-1 … E-8 | 见 `docs/reviews/fsguard-ph02-evidence.md` |
-| R-04 | 待收口 |
-| R-08 | 待收口 |
-| R-11 | 部分（H-7：判据 3 不可稳定判定） |
-| R-12 | 待收口 |
-| R-14 | 待收口 |
+| E-1 … E-8 | 原始输出见 `docs/reviews/fsguard-ph02-evidence.md`；E-7 `g7-asan` 1.5s 返回 rc=0 |
+| R-04 | 可验收（`r04` 8 checks） |
+| R-08 | 可验收；判据 3 的 LSan 部分待 Linux 补跑（B-3） |
+| R-11 | 部分（H-7：判据 3 不可稳定判定，其余判据绿） |
+| R-12 | 可验收（`r12` 16 checks，含 Q-2 口径） |
+| R-14 | 可验收（`r14` 6 checks，含 ELOOP） |
 | 泄漏 | 待 Linux 补跑（B-3），不记通过 |

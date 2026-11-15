@@ -72,8 +72,21 @@
 
 门禁红绿原始输出见 `docs/reviews/fsguard-ph01-evidence.md`。
 
+## 6.1 PH-02 实施状态
+
+| 项 | 状态 | 证据 |
+| --- | --- | --- |
+| `char *::read_chunk` | 已实现 | `bash tools/check.sh g3-ph02 r04`（8 checks） |
+| `FsGuard` 读写 | 已实现 | `bash tools/check.sh g3-ph02 r12`（16 checks） |
+| 生命周期 / setter | 已实现 | `bash tools/check.sh g3-ph02 r08`（15 checks） |
+| `last_error` 全操作 | 已实现（判据 3 记 H-7） | `bash tools/check.sh g3-ph02 r11`（16 checks） |
+| errno 映射 | 已实现（D-009） | `bash tools/check.sh g3-ph02 r14`（6 checks） |
+| ASan 门禁 | 已修复（看门狗） | `bash tools/check.sh g7-asan` |
+
+门禁红绿原始输出见 `docs/reviews/fsguard-ph02-evidence.md`。
+
 ## 7 泄漏与平台
 
-- Darwin：`bash tools/check.sh g7-leak` 只能 `DEFERRED rc=3`；PH-01 的「无内存泄漏」记 **待 Linux 补跑**，不得记通过。
+- Darwin：`bash tools/check.sh g7-leak` 只能 `DEFERRED rc=3`；PH-01/PH-02 的「无内存泄漏」记 **待 Linux 补跑**，不得记通过。
 - Linux 补跑命令：`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak`。
-- 本机可跑：`bash tools/check.sh g7-asan`（干净夹具 rc=0，UAF 被捕获）。
+- 本机可跑：`bash tools/check.sh g7-asan`（干净夹具 rc=0，UAF 被捕获；已加看门狗，`asan_uaf` 不退出也会被收口）。
