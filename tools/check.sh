@@ -22,7 +22,7 @@ g0_decisions() {
   [ -f docs/decisions/D-003.md ] || fail "G0: missing docs/decisions/D-003.md"
   [ -f docs/decisions/D-004.md ] || fail "G0: missing docs/decisions/D-004.md"
   [ -f docs/decisions/D-005.md ] || fail "G0: missing docs/decisions/D-005.md"
-  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md docs/decisions/D-006.md docs/decisions/D-007.md docs/decisions/D-008.md docs/decisions/D-009.md docs/decisions/D-010.md docs/decisions/D-011.md; do
+  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md docs/decisions/D-006.md docs/decisions/D-007.md docs/decisions/D-008.md docs/decisions/D-009.md docs/decisions/D-010.md docs/decisions/D-011.md docs/decisions/D-012.md; do
     [ -f "$f" ] || fail "G0: missing $f"
     for field in id date anchor status trigger verdict judge seats scope criteria rationale invalidation affected; do
       grep -q "^${field}:" "$f" || fail "G0: $f missing field: $field"
@@ -42,7 +42,15 @@ g0_decisions() {
     || fail "G0: README missing the std division-of-labor section (D-011)"
   grep -q '与 std 的语义差异' docs/acceptance/fsguard-commands.md \
     || fail "G0: acceptance commands missing the std semantics addendum (D-011)"
-  pass "g0-decisions: V-001 + D-001…D-011 have all 13 fields; no std dep; single namespace; std differences documented"
+  grep -q '不是安全边界' README.md \
+    || fail "G0: README missing the lexical-layer boundary line (D-012)"
+  grep -q '已裁（D-012）' docs/requirements.md \
+    || fail "G0: requirements must mark Q-1/H-3 as closed by D-012"
+  grep -q 'D-012' docs/acceptance/fsguard-status.md \
+    || fail "G0: status table must reference D-012"
+  grep -q 'D-012' docs/decisions/README.md \
+    || fail "G0: decisions index must assign D-012"
+  pass "g0-decisions: V-001 + D-001…D-012 have all 13 fields; no std dep; single namespace; std differences documented; sandbox claim closed"
 }
 
 g1_command() {
@@ -252,6 +260,7 @@ g4_static() {
   grep -q 'FS_ERR_NOT_DIR' "$f" || fail "G4: missing NOT_DIR disposition"
   grep -q 'ELOOP' "$f" || fail "G4: missing ELOOP disposition"
   grep -q 'LSan' "$f" || fail "G4: missing LSan disposition"
+  grep -q '| Q-1 / H-3 | 已裁' "$f" || fail "G4: Q-1/H-3 not marked resolved"
   grep -q '| Q-2 | 已裁' "$f" || fail "G4: Q-2 not marked resolved"
   grep -q 'D-006' "$f" || fail "G4: missing D-006 (Q-2)"
   grep -q 'D-009' "$f" || fail "G4: missing D-009 (ENOTDIR)"
@@ -260,7 +269,7 @@ g4_static() {
   grep -q '| Q-5 | 已裁' "$f" || fail "G4: Q-5 not marked resolved"
   grep -q '| Q-6 | 已裁' "$f" || fail "G4: Q-6 not marked resolved"
   grep -q '| Q-7 | 已裁' "$f" || fail "G4: Q-7 not marked resolved"
-  pass "g4-static: 5 threat terms, NOT_DIR/ELOOP/LSan, Q-2…Q-7 resolved, D-006/D-009 anchored"
+  pass "g4-static: 5 threat terms, NOT_DIR/ELOOP/LSan, Q-1…Q-7 resolved, D-006/D-009/D-012 anchored"
 }
 
 g5_anchor() {
@@ -283,9 +292,11 @@ g5_anchor() {
   grep -q 'D-006' "$f" || fail "G5: missing D-006"
   grep -q 'R-14' "$f" || fail "G5: missing R-14"
   grep -q 'D-009' "$f" || fail "G5: missing D-009"
+  grep -q 'Q-1' "$f" || fail "G5: missing Q-1"
+  grep -q 'D-012' "$f" || fail "G5: missing D-012"
   lines="$(wc -l < docs/reviews/fsguard-verdict.md | tr -d ' ')"
   [ "$lines" -le 300 ] || fail "G5: verdict has $lines lines (>300)"
-  pass "g5-anchor: R-05/06/07/10/12/14 + Q-2/3/4/6/7 + D-002/3/4/5/6/9; verdict $lines lines"
+  pass "g5-anchor: R-05/06/07/10/12/14 + Q-1/2/3/4/6/7 + D-002/3/4/5/6/9/12; verdict $lines lines"
 }
 
 g6_contract() {
