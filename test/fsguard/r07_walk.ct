@@ -70,6 +70,24 @@ static int stop_at_root(char *entry, int is_dir, void *ud)
     return 7;
 }
 
+static void remove_chain(char *base, int n)
+{
+    char buf[192];
+    int i;
+    strcpy(buf, base);
+    for (i = 0; i < n; i++) {
+        int k = (int)strlen(buf);
+        snprintf(buf + k, (size_t)(192 - k), "/d%d", i);
+    }
+    for (i = 0; i < n; i++) {
+        int k = (int)strlen(buf) - 1;
+        rmdir(buf);
+        while (k > 0 && buf[k] != '/') k--;
+        buf[k] = 0;
+    }
+    rmdir(buf);
+}
+
 static int is_dir_entry(char *path, int want)
 {
     int i;
@@ -88,7 +106,17 @@ int main(void)
     int rc;
 
     strcpy(root, "/tmp/fsguard_ph03_tree");
+    unlink("/tmp/fsguard_ph03_tree/f4");
+    unlink("/tmp/fsguard_ph03_tree/f5");
+    unlink("/tmp/fsguard_ph03_tree/a/f1");
+    unlink("/tmp/fsguard_ph03_tree/a/sub/f2");
+    unlink("/tmp/fsguard_ph03_tree/b/f3");
+    rmdir("/tmp/fsguard_ph03_tree/a/sub");
+    rmdir("/tmp/fsguard_ph03_tree/a");
+    rmdir("/tmp/fsguard_ph03_tree/b");
+    rmdir("/tmp/fsguard_ph03_tree/c");
     rmdir(root);
+    remove_chain("/tmp/fsguard_ph03_deep", 20);
     mkdir(root, 0755);
     strcpy(p, "/tmp/fsguard_ph03_tree/a");
     mkdir(p, 0755);
@@ -143,7 +171,6 @@ int main(void)
     check(rc == 7 && seen_n == 1, "root callback return 7 stops before any child");
 
     strcpy(p, "/tmp/fsguard_ph03_deep");
-    rmdir(p);
     mkdir(p, 0755);
     for (i = 0; i < 20; i++) {
         int n = (int)strlen(p);

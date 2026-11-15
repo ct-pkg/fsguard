@@ -65,6 +65,15 @@ int main(void)
     int plain;
 
     strcpy(root, "/tmp/fsguard_ph03_g");
+    unlink("/tmp/fsguard_ph03_g/secret/x");
+    unlink("/tmp/fsguard_ph03_g/secret/deep/y");
+    unlink("/tmp/fsguard_ph03_g/keep/f");
+    unlink("/tmp/fsguard_ph03_g/locked/z");
+    chmod("/tmp/fsguard_ph03_g/locked", 0755);
+    rmdir("/tmp/fsguard_ph03_g/secret/deep");
+    rmdir("/tmp/fsguard_ph03_g/secret");
+    rmdir("/tmp/fsguard_ph03_g/keep");
+    rmdir("/tmp/fsguard_ph03_g/locked");
     rmdir(root);
     mkdir(root, 0755);
     strcpy(p, "/tmp/fsguard_ph03_g/secret");

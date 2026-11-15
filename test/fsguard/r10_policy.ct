@@ -24,6 +24,24 @@ static void check(int cond, char *name)
     }
 }
 
+static void remove_chain(char *base, int n)
+{
+    char buf[192];
+    int i;
+    strcpy(buf, base);
+    for (i = 0; i < n; i++) {
+        int k = (int)strlen(buf);
+        snprintf(buf + k, (size_t)(192 - k), "/d%d", i);
+    }
+    for (i = 0; i < n; i++) {
+        int k = (int)strlen(buf) - 1;
+        rmdir(buf);
+        while (k > 0 && buf[k] != '/') k--;
+        buf[k] = 0;
+    }
+    rmdir(buf);
+}
+
 static int count_cb(char *entry, int is_dir, void *ud)
 {
     (void)entry;
@@ -42,7 +60,7 @@ int main(void)
     int rc;
 
     strcpy(root, "/tmp/fsguard_ph03_chain");
-    rmdir(root);
+    remove_chain(root, 17);
     mkdir(root, 0755);
     strcpy(p, root);
     for (i = 0; i < 17; i++) {
