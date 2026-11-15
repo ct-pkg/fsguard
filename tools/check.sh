@@ -6,6 +6,7 @@ set -u
 ROOT="${FSGUARD_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$ROOT" || exit 2
 CASE="${1:-}"
+shift || true
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/fsguard-check.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -50,6 +51,72 @@ g1_command() {
     n=$((n + 1))
   done
   pass "g1-command: 17/17 R sections have command + rc="
+}
+
+g1_phase_card() {
+  f=docs/phases/PH-01/card.md
+  [ -f "$f" ] || fail "G1: missing $f"
+  grep -q '^id: PH-01$' "$f" || fail "G1: $f missing field: id: PH-01"
+  grep -q '^version-minor: 1$' "$f" || fail "G1: $f missing field: version-minor: 1"
+  grep -q '^spec-version: 1\.9\.0$' "$f" || fail "G1: $f missing field: spec-version: 1.9.0"
+  for sec in 目标 范围 交付物清单 任务清单 退出判据 依赖 已知风险; do
+    grep -q "^## $sec\$" "$f" || fail "G1: $f missing section: $sec"
+  done
+  grep -q '任务清单每项可独立验收（6.6 T-6）' "$f" \
+    || fail "G1: $f exit-criteria missing the 6.6 T-6 clause"
+  n="$(grep -c '^| T-[0-9][0-9] |' "$f" || true)"
+  [ "$n" -ge 1 ] || fail "G1: $f task list is empty"
+  bad="$(awk -F'|' '/^\| T-[0-9][0-9] \|/ {
+      gsub(/^ +| +$/, "", $4);
+      gsub(/^ +| +$/, "", $5);
+      if (NF != 7) print "columns:" $2;
+      if ($4 !~ /(tools\/check\.sh|ct build)/) print "verify:" $2;
+      if ($5 != "S" && $5 != "M") print "effort:" $2;
+    }' "$f")"
+  [ -z "$bad" ] || fail "G1: $f task rows incomplete: $bad"
+  pass "g1-phase-card: PH-01 has 8 required sections, $n tasks with verify+effort+rollback"
+}
+
+g3_ph01() {
+  CT="${CT:-$HOME/.local/bin/ct}"
+  [ -x "$CT" ] || fail "G3: ct not found at $CT (set CT=/path/to/ct)"
+  sel="${1:-all}"
+  case "$sel" in
+    r02) tests="r02_errors" ;;
+    r05) tests="r05_normalize" ;;
+    r06) tests="r06_is_under" ;;
+    r09) tests="r09_check" ;;
+    all) tests="r02_errors r05_normalize r06_is_under r09_check" ;;
+    *) echo "usage: $0 g3-ph01 {r02|r05|r06|r09|all}"; exit 2 ;;
+  esac
+  if [ "$sel" = all ] || [ "$sel" = r02 ]; then
+    if grep -rq '#define FS_ERR_' src/fsguard 2>/dev/null; then
+      fail "G3:R-02 #define FS_ERR_ found in src/fsguard"
+    fi
+  fi
+  for name in $tests; do
+    src="test/fsguard/$name.ct"
+    [ -f "$src" ] || fail "G3: missing $src"
+    "$CT" build "$src" -I src --cflags "-Isrc" -o "$TMP/$name" >"$TMP/$name.build" 2>&1
+    if [ $? -ne 0 ]; then
+      cat "$TMP/$name.build"
+      fail "G3: build $name failed"
+    fi
+    "$TMP/$name" >"$TMP/$name.out" 2>&1
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+      cat "$TMP/$name.out"
+      fail "G3: $name rc=$rc"
+    fi
+    if grep -q '^not ok' "$TMP/$name.out"; then
+      cat "$TMP/$name.out"
+      fail "G3: $name reported not ok"
+    fi
+    grep -q 'all checks passed' "$TMP/$name.out" \
+      || { cat "$TMP/$name.out"; fail "G3: $name missing summary line"; }
+    echo "ok $name: $(grep -c '^ok ' "$TMP/$name.out") checks"
+  done
+  pass "g3-ph01: $sel green"
 }
 
 g4_static() {
@@ -193,6 +260,8 @@ g7_leak() {
 case "$CASE" in
   g0-decisions) g0_decisions ;;
   g1-command) g1_command ;;
+  g1-phase-card) g1_phase_card ;;
+  g3-ph01) g3_ph01 ;;
   g4-static) g4_static ;;
   g5-anchor) g5_anchor ;;
   g6-contract) g6_contract ;;
@@ -201,6 +270,8 @@ case "$CASE" in
   all)
     g0_decisions
     g1_command
+    g1_phase_card
+    g3_ph01
     g4_static
     g5_anchor
     g6_contract
@@ -208,7 +279,7 @@ case "$CASE" in
     g7_leak
     ;;
   *)
-    echo "usage: $0 {g0-decisions|g1-command|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|all}"
+    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card|g3-ph01 [r02|r05|r06|r09]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|all}"
     exit 2
     ;;
 esac

@@ -1,0 +1,47 @@
+/*
+ * R-02 错误码枚举：10 个成员的名字与数值冻结，包内不得用 #define。
+ *
+ * $ bash tools/check.sh g3-ph01 r02
+ *
+ * 本相只验本机可表达的部分：成员存在、数值正确、裸名可用。
+ * 限定名 FsErrCode::FS_ERR_* 在 ct 0.44.1 不可表达（卡 H-2），不在此断言。
+ */
+import fsguard::FsGuard;
+#include <stdio.h>
+
+static int total = 0;
+static int failed = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+int main(void)
+{
+    check(FS_OK == 0, "FS_OK == 0");
+    check(FS_ERR_NOT_FOUND == 1, "FS_ERR_NOT_FOUND == 1");
+    check(FS_ERR_PERMISSION == 2, "FS_ERR_PERMISSION == 2");
+    check(FS_ERR_OUT_OF_BOUNDS == 3, "FS_ERR_OUT_OF_BOUNDS == 3");
+    check(FS_ERR_DENIED_PATTERN == 4, "FS_ERR_DENIED_PATTERN == 4");
+    check(FS_ERR_IS_DIR == 5, "FS_ERR_IS_DIR == 5");
+    check(FS_ERR_NOT_DIR == 6, "FS_ERR_NOT_DIR == 6");
+    check(FS_ERR_BUFFER_TOO_SMALL == 7, "FS_ERR_BUFFER_TOO_SMALL == 7");
+    check(FS_ERR_IO == 8, "FS_ERR_IO == 8");
+    check(FS_ERR_OOM == 9, "FS_ERR_OOM == 9");
+
+    check(FS_OK != FS_ERR_IO, "members are distinct constants");
+
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}

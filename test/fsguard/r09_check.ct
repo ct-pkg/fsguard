@@ -1,0 +1,108 @@
+/*
+ * R-09 check：判定顺序、错误码与 last_error。
+ *
+ * $ bash tools/check.sh g3-ph01 r09
+ *
+ * 冻结口径：① 规范化 → ② root 段边界 → ③ allow 前缀 → ④ deny glob → ⑤ FS_OK。
+ * 绝对 root + 相对输入按 D-002 拒绝（OUT_OF_BOUNDS）。
+ */
+import fsguard::FsGuard;
+#include <stdio.h>
+#include <string.h>
+
+static int total = 0;
+static int failed = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+int main(void)
+{
+    FsGuard *a;
+    FsGuard *b;
+    FsGuard *g;
+    FsError *e;
+
+    a = fsguard::fsguard_new("/ws/../ws");
+    b = fsguard::fsguard_new("/ws");
+    check(a != 0 && b != 0, "new returns an object");
+    check(a->check("/ws/../ws/a") == FS_OK, "normalise before compare");
+    check(a->check("/ws/a") == b->check("/ws/a"),
+          "root /ws/../ws behaves like /ws");
+    check(a->check("/ws2/a") == FS_ERR_OUT_OF_BOUNDS,
+          "segment boundary rejects /ws2 under root /ws");
+    check(a->has_error() == 1, "failed check records an error");
+    check(a->check("/ws/a") == FS_OK, "next successful check clears the error");
+    check(a->has_error() == 0 && a->last_error() == 0,
+          "successful check leaves no error");
+    delete a;
+    delete b;
+
+    g = fsguard::fsguard_new("/workspace/src");
+    check(g->check("/workspace/src/a.c") == FS_OK, "child under root is allowed");
+    check(g->check("/workspace/src") == FS_OK, "root itself is allowed");
+    check(g->check("/workspace/src2/a.c") == FS_ERR_OUT_OF_BOUNDS,
+          "sibling with common string prefix is rejected");
+    check(g->check("/no/such/path") == FS_ERR_OUT_OF_BOUNDS,
+          "outside path is rejected before touching the filesystem");
+    check(g->check("a.c") == FS_ERR_OUT_OF_BOUNDS,
+          "relative input with absolute root is rejected (D-002)");
+    check(g->has_error() == 1 && g->last_error() != 0,
+          "failure leaves an error object");
+    e = g->last_error();
+    check(e->code == FS_ERR_OUT_OF_BOUNDS, "last_error code matches return value");
+    check(strcmp(e->path, "a.c") == 0, "last_error path is the normalised input");
+    check(e->message != 0 && strlen(e->message) > 0, "last_error message is not empty");
+    g->clear_error();
+    check(g->last_error() == 0 && g->has_error() == 0, "clear_error resets the error");
+    delete g;
+
+    g = fsguard::fsguard_new(0);
+    check(g != 0, "new(NULL) returns an object");
+    check(g->check("/etc/passwd") == FS_OK,
+          "new(NULL) with no policy allows any path");
+    check(g->allow_prefix("/workspace/src") == g, "allow_prefix returns the receiver");
+    check(g->check("/workspace/src/x") == FS_OK, "allow prefix admits its child");
+    check(g->check("/etc/passwd") == FS_ERR_OUT_OF_BOUNDS,
+          "allow prefix rejects outside paths");
+    delete g;
+
+    g = fsguard::fsguard_new(0);
+    g->allow_prefix("/workspace/src");
+    g->deny_pattern("/workspace/src/*.key");
+    check(g->check("/workspace/src/a.key") == FS_ERR_DENIED_PATTERN,
+          "deny glob matches a direct child");
+    check(g->check("/workspace/src/deep/a.key") == FS_OK,
+          "deny glob does not cross a slash");
+    delete g;
+
+    g = fsguard::fsguard_new(0);
+    g->allow_prefix("/a");
+    g->deny_pattern("/b/*");
+    check(g->check("/b/x") == FS_ERR_OUT_OF_BOUNDS,
+          "allow failure wins over deny hit");
+    delete g;
+
+    g = fsguard::fsguard_new("/workspace/src");
+    check(g->check("/workspace/../etc/passwd") == FS_ERR_OUT_OF_BOUNDS,
+          "escaped path is normalised then rejected");
+    e = g->last_error();
+    check(e != 0 && strcmp(e->path, "/etc/passwd") == 0,
+          "last_error path is the normalised escaped path");
+    delete g;
+
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}
