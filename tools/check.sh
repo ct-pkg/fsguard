@@ -345,9 +345,9 @@ g7_leak() {
 case "$CASE" in
   g0-decisions) g0_decisions ;;
   g1-command) g1_command ;;
-  g1-phase-card) g1_phase_card ;;
-  g3-ph01) g3_ph01 ;;
-  g3-ph02) g3_ph02 ;;
+  g1-phase-card) g1_phase_card "$@" ;;
+  g3-ph01) g3_ph01 "$@" ;;
+  g3-ph02) g3_ph02 "$@" ;;
   g4-static) g4_static ;;
   g5-anchor) g5_anchor ;;
   g6-contract) g6_contract ;;
