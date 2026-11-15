@@ -31,7 +31,7 @@ roadmap: docs/planning/fsguard-roadmap.md
 | # | 路径 | 内容 |
 | --- | --- | --- |
 | 1 | `docs/decisions/D-010.md` | H-7 裁定 |
-| 2 | `src/fsguard/FsGuardOps.shim.h` | 唯一递归 walker（`fsgo_walk_impl`）与 `char *::walk` |
+| 2 | `src/fsguard/FsGuardOps.shim.h` | 唯一递归 walker（`fsgo_walk` / `fsgo_walk_node`）与 `char *::walk` |
 | 3 | `src/fsguard/FsGuard.h.ct` | `FsWalkCb`、`FsGuard::walk`、策略 setter 收敛 |
 | 4 | `src/fsguard/FsGuardOps.m.ct` | `walk` 的 `map trait` |
 | 5 | `test/fsguard/r07_walk.ct` | R-07 判据 1–6 |
@@ -98,6 +98,7 @@ roadmap: docs/planning/fsguard-roadmap.md
 | 项 | 结果 |
 | --- | --- |
 | E-1 … E-7 | 见 `docs/reviews/fsguard-ph03-evidence.md` |
+| 全量 `all` | 11 个门禁均实际执行；Darwin 上 rc=3（泄漏 deferred，不记通过）。顺带修掉 `all` 在 g0 后截断的假绿 |
 | R-07 | 可验收（`r07` 17 checks；判据 6 按 H-9 以指针复用 + README 契约替代） |
 | R-10 | 可验收（`r10` 13 checks） |
 | R-13 | 可验收（`r13` 10 checks） |

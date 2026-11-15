@@ -11,7 +11,8 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/fsguard-check.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
 fail() { echo "FAIL: $*"; exit 1; }
-pass() { echo "PASS: $*"; exit 0; }
+# 只报结果、不退出：all 模式要连续跑完每个子门禁。
+pass() { echo "PASS: $*"; return 0; }
 
 g0_decisions() {
   [ -f docs/decisions/README.md ] || fail "G0: missing docs/decisions/README.md"
@@ -301,7 +302,10 @@ g6_contract() {
   grep -q 'G7:F2' "$ROOT/tools/check.sh" || fail "G6: g7 leak failure lacks F2 id"
   grep -q 'G4: missing' "$ROOT/tools/check.sh" || fail "G6: g4 failure lacks G4 id"
   grep -q 'G5: missing' "$ROOT/tools/check.sh" || fail "G6: g5 failure lacks G5 id"
-  pass "g6-contract: broken copies yield G0/D-002 and G1/R-09; G4/G5/G7 ids present"
+  awk '/^pass\(\)/ { if ($0 ~ /exit/) bad = 1 } END { exit bad }' "$ROOT/tools/check.sh" \
+    || fail "G6: pass() exits, all-mode truncates after the first gate"
+  grep -q '( g7_leak )' "$ROOT/tools/check.sh" || fail "G6: all-mode must isolate g7_leak deferred rc=3"
+  pass "g6-contract: broken copies yield G0/D-002 and G1/R-09; G4/G5/G7 ids present; all-mode continuous"
 }
 
 g7_asan() {
@@ -389,16 +393,16 @@ g7_leak() {
 }
 
 case "$CASE" in
-  g0-decisions) g0_decisions ;;
-  g1-command) g1_command ;;
-  g1-phase-card) g1_phase_card "$@" ;;
-  g3-ph01) g3_ph01 "$@" ;;
-  g3-ph02) g3_ph02 "$@" ;;
-  g3-ph03) g3_ph03 "$@" ;;
-  g4-static) g4_static ;;
-  g5-anchor) g5_anchor ;;
-  g6-contract) g6_contract ;;
-  g7-asan) g7_asan ;;
+  g0-decisions) g0_decisions; exit 0 ;;
+  g1-command) g1_command; exit 0 ;;
+  g1-phase-card) g1_phase_card "$@"; exit 0 ;;
+  g3-ph01) g3_ph01 "$@"; exit 0 ;;
+  g3-ph02) g3_ph02 "$@"; exit 0 ;;
+  g3-ph03) g3_ph03 "$@"; exit 0 ;;
+  g4-static) g4_static; exit 0 ;;
+  g5-anchor) g5_anchor; exit 0 ;;
+  g6-contract) g6_contract; exit 0 ;;
+  g7-asan) g7_asan; exit 0 ;;
   g7-leak) g7_leak ;;
   all)
     g0_decisions
@@ -411,7 +415,15 @@ case "$CASE" in
     g5_anchor
     g6_contract
     g7_asan
-    g7_leak
+    # g7_leak 自己会 exit 3，放子 shell 里取值，避免 all 在第 11 个门禁处被截断。
+    ( g7_leak ); leak_rc=$?
+    if [ "$leak_rc" -eq 0 ]; then
+      exit 0
+    elif [ "$leak_rc" -eq 3 ]; then
+      echo "note: 泄漏门禁 deferred（rc=3）；all 不以 0 收口"
+      exit 3
+    fi
+    exit "$leak_rc"
     ;;
   *)
     echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g3-ph03 [r07|r10|r13]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|all}"

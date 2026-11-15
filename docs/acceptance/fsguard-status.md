@@ -1,11 +1,11 @@
-# fsguard 需求定稿状态（D-001…D-009 后）
+# fsguard 需求定稿状态（D-001…D-010 后）
 
 > 本文件只记录状态口径，不改 `requirements.md` / `design.md` 正文。  
 > 静态校验：`bash tools/check.sh g4-static`；锚点校验：`bash tools/check.sh g5-anchor`。
 
 ## 1 结论
 
-**PH-01/PH-02 已收口，PH-03 实施中：遍历与策略已落地。** 需求口径上 17 条中 15 条可验收、2 条部分可验收（R-02/R-17）、0 条不可验收。剩余未决项：R-02 的限定名在 ct 0.44.1 不可表达（H-2 → PH-04）、macOS LSan 降级（R-17 → PH-04 / Linux CI）。H-7 已由 D-010 关闭。
+**PH-01/PH-02/PH-03 已收口：遍历与策略已落地。** 需求口径上 17 条中 15 条可验收、2 条部分可验收（R-02/R-17）、0 条不可验收。剩余两项均已写明缺项与归属：R-02 缺 `FsErrCode::FS_ERR_*` 限定名（ct 0.44.1 不可表达，H-2 → PH-04）、R-17 缺一次 Linux 上的 LSan 绿（→ PH-04 / Linux CI）。H-7 已由 D-010 关闭。
 
 ## 2 威胁模型五处（承接 FSR-02…06）
 
@@ -29,6 +29,7 @@
 | Q-7 | 已裁（D-005） | R-10/R-13 的 deny 最小方言 |
 | `FS_ERR_NOT_DIR` | 已收口（D-009） | `ENOTDIR → NOT_DIR`，R-02/R-14 可验收 |
 | `ELOOP` | 已收口（D-009） | 归 `FS_ERR_IO`，PH-02 有环用例 |
+| H-7 | 已关闭（D-010） | R-11 判据 3 改为可核对条款，不再挂「部分」 |
 | LSan（macOS） | 平台化降级 | R-17 本机不能完整自证 |
 
 ## 4 R 状态
@@ -36,7 +37,7 @@
 | R | 状态 | 依据 |
 | --- | --- | --- |
 | R-01 | 可验收 | 包形态判据已定 |
-| R-02 | 部分 | 10 码与 `NOT_DIR` 已收口（D-009）；限定名 `FsErrCode::*` 在 ct 0.44.1 不可表达（H-2） |
+| R-02 | 部分 | 10 码与 `NOT_DIR` 已收口（D-009）；**缺项**：限定名 `FsErrCode::*` 在 ct 0.44.1 报 `qualified type names are not supported`（H-2）；**归属 PH-04**，触发条件为 ct 升级后复跑 `test/fsguard/r02_errors.ct` 的限定名用例 |
 | R-03 | 可验收 | 命名共存判据已定 |
 | R-04 | 可验收 | Q-5 已裁（D-001），负 offset→`FS_ERR_IO` |
 | R-05 | **可验收** | Q-3（D-003）与重叠拒绝（D-008）已裁；`g3-ph01 r05` 绿 |
@@ -51,7 +52,7 @@
 | R-14 | **可验收** | `ENOTDIR → NOT_DIR`、`ELOOP → IO`（D-009）；`g3-ph02 r14` 绿 |
 | R-15 | 可验收 | POSIX 边界已定 |
 | R-16 | 可验收 | `std::fs` 零改动判据已定 |
-| R-17 | 部分 | macOS LSan 降级，泄漏门禁交 Linux CI |
+| R-17 | 部分 | 判据 1–4 本机可执行（运行时夹具、门禁覆盖、集合排序、ASan）；**缺项**：判据 5 的 LSan 在 Darwin 不可执行；**归属 PH-04 / Linux CI**，缺一次 `ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 绿 |
 
 ## 5 锚点说明
 
@@ -79,14 +80,27 @@
 | `char *::read_chunk` | 已实现 | `bash tools/check.sh g3-ph02 r04`（8 checks） |
 | `FsGuard` 读写 | 已实现 | `bash tools/check.sh g3-ph02 r12`（16 checks） |
 | 生命周期 / setter | 已实现 | `bash tools/check.sh g3-ph02 r08`（15 checks） |
-| `last_error` 全操作 | 已实现（判据 3 记 H-7） | `bash tools/check.sh g3-ph02 r11`（16 checks） |
+| `last_error` 全操作 | 已实现（判据 3 由 D-010 关闭 H-7） | `bash tools/check.sh g3-ph02 r11`（16 checks） |
 | errno 映射 | 已实现（D-009） | `bash tools/check.sh g3-ph02 r14`（6 checks） |
 | ASan 门禁 | 已修复（看门狗） | `bash tools/check.sh g7-asan` |
 
 门禁红绿原始输出见 `docs/reviews/fsguard-ph02-evidence.md`。
 
+## 6.2 PH-03 实施状态
+
+| 项 | 状态 | 证据 |
+| --- | --- | --- |
+| 唯一递归 walker | 已实现 | `g3-ph03 all` 校验 `fsgo_walk_node` 全仓唯一 |
+| `char *::walk`（R-07） | 已实现 | `bash tools/check.sh g3-ph03 r07`（17 checks） |
+| 策略 setter / 默认深度（R-10） | 已实现 | `bash tools/check.sh g3-ph03 r10`（13 checks） |
+| `FsGuard::walk`（R-13） | 已实现 | `bash tools/check.sh g3-ph03 r13`（10 checks） |
+| R-11 判据 3（D-010） | 已收口 | `bash tools/check.sh g3-ph02 r11` + 清错计数 6 |
+| ASan 门禁 | 绿 | `bash tools/check.sh g7-asan` |
+
+门禁红绿原始输出见 `docs/reviews/fsguard-ph03-evidence.md`。
+
 ## 7 泄漏与平台
 
-- Darwin：`bash tools/check.sh g7-leak` 只能 `DEFERRED rc=3`；PH-01/PH-02 的「无内存泄漏」记 **待 Linux 补跑**，不得记通过。
+- Darwin：`bash tools/check.sh g7-leak` 只能 `DEFERRED rc=3`；PH-01/PH-02/PH-03 的「无内存泄漏」记 **待 Linux 补跑**，不得记通过。
 - Linux 补跑命令：`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak`。
 - 本机可跑：`bash tools/check.sh g7-asan`（干净夹具 rc=0，UAF 被捕获；已加看门狗，`asan_uaf` 不退出也会被收口）。
