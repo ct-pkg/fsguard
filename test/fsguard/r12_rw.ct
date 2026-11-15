@@ -1,0 +1,128 @@
+/*
+ * R-12 FsGuard 读写包装：返回值、容量边界、越界先 check、错误映射。
+ *
+ * $ bash tools/check.sh g3-ph02 r12
+ *
+ * Q-2 = A（D-006）：失败不只断言目标文件内容；成功断言 len 与逐字节相等。
+ */
+import fsguard::FsGuard;
+#include <stdio.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+static int total = 0;
+static int failed = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+static int write_bytes(char *path, char *data, int len)
+{
+    int fd;
+    int put = 0;
+
+    fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) return -1;
+    while (put < len) {
+        int n = (int)write(fd, data + put, (size_t)(len - put));
+        if (n <= 0) {
+            close(fd);
+            return -1;
+        }
+        put += n;
+    }
+    close(fd);
+    return 0;
+}
+
+int main(void)
+{
+    char path[128];
+    char dir[128];
+    char nested[160];
+    char oob[128];
+    char bin[4];
+    char buf[16];
+    char data[6];
+    FsGuard *g;
+    int i;
+    int rc;
+
+    strcpy(path, "/tmp/fsguard_ph02_rw.txt");
+    strcpy(dir, "/tmp/fsguard_ph02_dir");
+    strcpy(nested, "/tmp/fsguard_ph02_rw.txt/child");
+    strcpy(oob, "/tmp/fsguard_ph02_oob.txt");
+    unlink(path);
+    rmdir(dir);
+    unlink(oob);
+    strcpy(data, "abcde");
+    write_bytes(path, data, 5);
+    mkdir(dir, 0755);
+
+    g = fsguard::fsguard_new(0);
+    check(g != 0, "new(NULL) returns an object");
+
+    memset(buf, 0, sizeof(buf));
+    check(g->read_file(path, buf, 8) == 5 && strcmp(buf, "abcde") == 0,
+          "read_file returns the byte count and NUL-terminates");
+    check(buf[5] == 0, "read_file writes the trailing NUL");
+
+    memset(buf, 0xAA, sizeof(buf));
+    rc = g->read_file(path, buf, 5);
+    check(rc == FS_ERR_BUFFER_TOO_SMALL, "cap == size fails with BUFFER_TOO_SMALL");
+    check((unsigned char)buf[0] == 0xAA && (unsigned char)buf[15] == 0xAA,
+          "failed read_file leaves the buffer untouched");
+
+    bin[0] = 0;
+    bin[1] = 'x';
+    bin[2] = 0;
+    bin[3] = 'y';
+    check(g->write_file(path, bin, 4) == 4, "write_file returns len");
+    memset(buf, 0, sizeof(buf));
+    check(g->read_file(path, buf, 16) == 4 && memcmp(buf, bin, 4) == 0,
+          "binary payload round-trips byte for byte");
+
+    check(g->read_file("/tmp/fsguard_ph02_missing", buf, 16) == FS_ERR_NOT_FOUND,
+          "missing file maps to NOT_FOUND");
+    check(g->read_file(dir, buf, 16) == FS_ERR_IS_DIR, "directory maps to IS_DIR");
+    check(g->read_file(nested, buf, 16) == FS_ERR_NOT_DIR,
+          "ENOTDIR maps to NOT_DIR (D-009)");
+
+    if (geteuid() == 0) {
+        printf("skip PERMISSION case: running as root\n");
+    } else {
+        chmod(path, 0);
+        check(g->read_file(path, buf, 16) == FS_ERR_PERMISSION,
+              "chmod 000 maps to PERMISSION");
+        chmod(path, 0644);
+    }
+    delete g;
+
+    g = fsguard::fsguard_new("/ws");
+    check(g->write_file(oob, "x", 1) == FS_ERR_OUT_OF_BOUNDS,
+          "out-of-bounds write returns OUT_OF_BOUNDS before touching the fs");
+    check(access(oob, F_OK) != 0, "out-of-bounds write creates no file");
+
+    for (i = 0; i < 3; i++) check(g->check("/ws/a") == FS_OK, "check still green");
+    delete g;
+
+    unlink(path);
+    rmdir(dir);
+    unlink(oob);
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}

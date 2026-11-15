@@ -1,0 +1,71 @@
+/*
+ * R-08 FsGuard 生命周期与所有权：root 规范化、NULL root、链式 setter、非法参数。
+ *
+ * $ bash tools/check.sh g3-ph02 r08
+ *
+ * 判据 3（LSan 零泄漏）在 Darwin 不可执行：见 PH-02 卡 B-3，记待 Linux 补跑。
+ */
+import fsguard::FsGuard;
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+static int total = 0;
+static int failed = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+int main(void)
+{
+    FsGuard *a;
+    FsGuard *b;
+    FsGuard *g;
+    char *longroot;
+    int i;
+
+    a = fsguard::fsguard_new("/ws/../ws");
+    b = fsguard::fsguard_new("/ws");
+    check(a != 0 && b != 0, "new returns an object");
+    check(a->check("/ws/a") == b->check("/ws/a"), "root is normalised before storing");
+    check(b->check("/ws2/a") == FS_ERR_OUT_OF_BOUNDS, "normalised root keeps segment boundary");
+    delete a;
+    delete b;
+
+    g = fsguard::fsguard_new(0);
+    check(g != 0, "new(NULL) returns an object");
+    check(g->check("/etc/passwd") == FS_OK, "new(NULL) applies no root constraint");
+    check(g->check("relative/path") == FS_OK, "new(NULL) accepts relative input");
+    check(g->allow_prefix("/workspace/src") == g, "allow_prefix returns the receiver");
+    check(g->deny_pattern("/workspace/src/*.key") == g, "deny_pattern returns the receiver");
+    check(g->max_depth(4) == g, "max_depth returns the receiver");
+    check(g->check("/workspace/src/a") == FS_OK, "chained setters keep working");
+    check(g->check("/workspace/src/x.key") == FS_ERR_DENIED_PATTERN, "deny still applies after max_depth");
+    check(g->check("/etc/passwd") == FS_ERR_OUT_OF_BOUNDS, "allow still applies after max_depth");
+
+    check(g->max_depth(-1) == 0, "negative max_depth returns NULL");
+    check(g->check("/workspace/src/a") == FS_OK, "failed setter leaves the object unchanged");
+    delete g;
+
+    longroot = malloc(5000);
+    for (i = 0; i < 4999; i++) longroot[i] = 'a';
+    longroot[0] = '/';
+    longroot[4999] = 0;
+    check(fsguard::fsguard_new(longroot) == 0, "over-long root returns NULL");
+    free(longroot);
+
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}

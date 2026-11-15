@@ -21,12 +21,13 @@ g0_decisions() {
   [ -f docs/decisions/D-003.md ] || fail "G0: missing docs/decisions/D-003.md"
   [ -f docs/decisions/D-004.md ] || fail "G0: missing docs/decisions/D-004.md"
   [ -f docs/decisions/D-005.md ] || fail "G0: missing docs/decisions/D-005.md"
-  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md; do
+  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md docs/decisions/D-006.md docs/decisions/D-007.md docs/decisions/D-008.md docs/decisions/D-009.md; do
+    [ -f "$f" ] || fail "G0: missing $f"
     for field in id date anchor status trigger verdict judge seats scope criteria rationale invalidation affected; do
       grep -q "^${field}:" "$f" || fail "G0: $f missing field: $field"
     done
   done
-  pass "g0-decisions: V-001 + D-001…D-005 have all 13 fields"
+  pass "g0-decisions: V-001 + D-001…D-009 have all 13 fields"
 }
 
 g1_command() {
@@ -54,27 +55,37 @@ g1_command() {
 }
 
 g1_phase_card() {
-  f=docs/phases/PH-01/card.md
-  [ -f "$f" ] || fail "G1: missing $f"
-  grep -q '^id: PH-01$' "$f" || fail "G1: $f missing field: id: PH-01"
-  grep -q '^version-minor: 1$' "$f" || fail "G1: $f missing field: version-minor: 1"
-  grep -q '^spec-version: 1\.9\.0$' "$f" || fail "G1: $f missing field: spec-version: 1.9.0"
-  for sec in 目标 范围 交付物清单 任务清单 退出判据 依赖 已知风险; do
-    grep -q "^## $sec\$" "$f" || fail "G1: $f missing section: $sec"
+  sel="${1:-all}"
+  case "$sel" in
+    all) list="PH-01 PH-02" ;;
+    PH-01|PH-02) list="$sel" ;;
+    *) echo "usage: $0 g1-phase-card {PH-01|PH-02|all}"; exit 2 ;;
+  esac
+  for ph in $list; do
+    f="docs/phases/$ph/card.md"
+    vm="${ph#PH-0}"
+    [ -f "$f" ] || fail "G1: missing $f"
+    grep -q "^id: $ph\$" "$f" || fail "G1: $f missing field: id: $ph"
+    grep -q "^version-minor: $vm\$" "$f" || fail "G1: $f missing field: version-minor: $vm"
+    grep -q '^spec-version: 1\.9\.0$' "$f" || fail "G1: $f missing field: spec-version: 1.9.0"
+    for sec in 目标 范围 交付物清单 任务清单 退出判据 依赖 已知风险; do
+      grep -q "^## $sec\$" "$f" || fail "G1: $f missing section: $sec"
+    done
+    grep -q '任务清单每项可独立验收（6.6 T-6）' "$f" \
+      || fail "G1: $f exit-criteria missing the 6.6 T-6 clause"
+    n="$(grep -c '^| T-[0-9][0-9] |' "$f" || true)"
+    [ "$n" -ge 1 ] || fail "G1: $f task list is empty"
+    bad="$(awk -F'|' '/^\| T-[0-9][0-9] \|/ {
+        gsub(/^ +| +$/, "", $4);
+        gsub(/^ +| +$/, "", $5);
+        if (NF != 7) print "columns:" $2;
+        if ($4 !~ /(tools\/check\.sh|ct build)/) print "verify:" $2;
+        if ($5 != "S" && $5 != "M") print "effort:" $2;
+      }' "$f")"
+    [ -z "$bad" ] || fail "G1: $f task rows incomplete: $bad"
+    echo "ok $ph: 8 sections, $n tasks"
   done
-  grep -q '任务清单每项可独立验收（6.6 T-6）' "$f" \
-    || fail "G1: $f exit-criteria missing the 6.6 T-6 clause"
-  n="$(grep -c '^| T-[0-9][0-9] |' "$f" || true)"
-  [ "$n" -ge 1 ] || fail "G1: $f task list is empty"
-  bad="$(awk -F'|' '/^\| T-[0-9][0-9] \|/ {
-      gsub(/^ +| +$/, "", $4);
-      gsub(/^ +| +$/, "", $5);
-      if (NF != 7) print "columns:" $2;
-      if ($4 !~ /(tools\/check\.sh|ct build)/) print "verify:" $2;
-      if ($5 != "S" && $5 != "M") print "effort:" $2;
-    }' "$f")"
-  [ -z "$bad" ] || fail "G1: $f task rows incomplete: $bad"
-  pass "g1-phase-card: PH-01 has 8 required sections, $n tasks with verify+effort+rollback"
+  pass "g1-phase-card: $list cards complete"
 }
 
 g3_ph01() {
@@ -119,6 +130,58 @@ g3_ph01() {
   pass "g3-ph01: $sel green"
 }
 
+g3_ph02() {
+  CT="${CT:-$HOME/.local/bin/ct}"
+  [ -x "$CT" ] || fail "G3: ct not found at $CT (set CT=/path/to/ct)"
+  sel="${1:-all}"
+  case "$sel" in
+    r04) tests="r04_read_chunk" ;;
+    r08) tests="r08_lifecycle" ;;
+    r11) tests="r11_error" ;;
+    r12) tests="r12_rw" ;;
+    r14) tests="r14_errno" ;;
+    all) tests="r04_read_chunk r08_lifecycle r11_error r12_rw r14_errno" ;;
+    *) echo "usage: $0 g3-ph02 {r04|r08|r11|r12|r14|all}"; exit 2 ;;
+  esac
+  if [ "$sel" = all ] || [ "$sel" = r14 ]; then
+    n="$(grep -c 'static int fsguard_errno_to_code' src/fsguard/FsGuard.h.ct || true)"
+    [ "$n" -eq 1 ] || fail "G3:R-14 expected exactly one fsguard_errno_to_code, got $n"
+    n="$(grep -r 'case EACCES' src/fsguard | wc -l | tr -d ' ')"
+    [ "$n" -eq 1 ] || fail "G3:R-14 errno branch outside the single mapping: $n"
+  fi
+  if [ "$sel" = all ] || [ "$sel" = r12 ]; then
+    grep -q 'open(norm' src/fsguard/FsGuard.h.ct \
+      || fail "G3:R-12 read/write must use open/errno, not std::fs -1 alone"
+  fi
+  for name in $tests; do
+    src="test/fsguard/$name.ct"
+    [ -f "$src" ] || fail "G3: missing $src"
+    "$CT" build "$src" -I src --cflags "-Isrc" -o "$TMP/$name" >"$TMP/$name.build" 2>&1
+    if [ $? -ne 0 ]; then
+      cat "$TMP/$name.build"
+      fail "G3: build $name failed"
+    fi
+    "$TMP/$name" >"$TMP/$name.out" 2>&1
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+      cat "$TMP/$name.out"
+      fail "G3: $name rc=$rc"
+    fi
+    if grep -q '^not ok' "$TMP/$name.out"; then
+      cat "$TMP/$name.out"
+      fail "G3: $name reported not ok"
+    fi
+    if grep -q '^skip' "$TMP/$name.out"; then
+      cat "$TMP/$name.out"
+      fail "G3: $name skipped a fixture (environment gap, not a pass)"
+    fi
+    grep -q 'all checks passed' "$TMP/$name.out" \
+      || { cat "$TMP/$name.out"; fail "G3: $name missing summary line"; }
+    echo "ok $name: $(grep -c '^ok ' "$TMP/$name.out") checks"
+  done
+  pass "g3-ph02: $sel green"
+}
+
 g4_static() {
   f=docs/acceptance/fsguard-status.md
   [ -f "$f" ] || fail "G4: missing $f"
@@ -128,13 +191,15 @@ g4_static() {
   grep -q 'FS_ERR_NOT_DIR' "$f" || fail "G4: missing NOT_DIR disposition"
   grep -q 'ELOOP' "$f" || fail "G4: missing ELOOP disposition"
   grep -q 'LSan' "$f" || fail "G4: missing LSan disposition"
-  grep -q '| Q-2 | 未裁' "$f" || fail "G4: Q-2 not marked open"
+  grep -q '| Q-2 | 已裁' "$f" || fail "G4: Q-2 not marked resolved"
+  grep -q 'D-006' "$f" || fail "G4: missing D-006 (Q-2)"
+  grep -q 'D-009' "$f" || fail "G4: missing D-009 (ENOTDIR)"
   grep -q '| Q-3 | 已裁' "$f" || fail "G4: Q-3 not marked resolved"
   grep -q '| Q-4 | 已裁' "$f" || fail "G4: Q-4 not marked resolved"
   grep -q '| Q-5 | 已裁' "$f" || fail "G4: Q-5 not marked resolved"
   grep -q '| Q-6 | 已裁' "$f" || fail "G4: Q-6 not marked resolved"
   grep -q '| Q-7 | 已裁' "$f" || fail "G4: Q-7 not marked resolved"
-  pass "g4-static: 5 threat terms, NOT_DIR/ELOOP/LSan, Q-2 open, Q-3…Q-7 resolved"
+  pass "g4-static: 5 threat terms, NOT_DIR/ELOOP/LSan, Q-2…Q-7 resolved, D-006/D-009 anchored"
 }
 
 g5_anchor() {
@@ -152,9 +217,14 @@ g5_anchor() {
   grep -q 'R-10' "$f" || fail "G5: missing R-10"
   grep -q 'Q-7' "$f" || fail "G5: missing Q-7"
   grep -q 'D-005' "$f" || fail "G5: missing D-005"
+  grep -q 'R-12' "$f" || fail "G5: missing R-12"
+  grep -q 'Q-2' "$f" || fail "G5: missing Q-2"
+  grep -q 'D-006' "$f" || fail "G5: missing D-006"
+  grep -q 'R-14' "$f" || fail "G5: missing R-14"
+  grep -q 'D-009' "$f" || fail "G5: missing D-009"
   lines="$(wc -l < docs/reviews/fsguard-verdict.md | tr -d ' ')"
   [ "$lines" -le 300 ] || fail "G5: verdict has $lines lines (>300)"
-  pass "g5-anchor: R-05/R-06/R-07/R-10 + Q-3/4/6/7 + D-002/3/4/5; verdict $lines lines"
+  pass "g5-anchor: R-05/06/07/10/12/14 + Q-2/3/4/6/7 + D-002/3/4/5/6/9; verdict $lines lines"
 }
 
 g6_contract() {
@@ -200,11 +270,26 @@ g7_asan() {
   fi
   "$cc" -fsanitize=address -g tools/fixtures/asan_uaf.c -o "$TMP/asan_uaf" \
     || fail "G7:F1 compile asan_uaf.c failed"
-  "$TMP/asan_uaf" >"$TMP/asan_uaf.out" 2>&1
-  rc=$?
-  if [ "$rc" -eq 0 ]; then
-    cat "$TMP/asan_uaf.out"
-    fail "G7:F1 asan_uaf rc=0 (AddressSanitizer did not catch the UAF)"
+  # Darwin 上 ASan 报告后进程可能不退出（H-6）：用看门狗收口，不依赖外部 kill。
+  "$TMP/asan_uaf" >"$TMP/asan_uaf.out" 2>&1 &
+  pid=$!
+  n=0
+  while kill -0 "$pid" 2>/dev/null; do
+    [ "$n" -ge 40 ] && break
+    sleep 0.5
+    n=$((n + 1))
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid" 2>/dev/null
+    wait "$pid" 2>/dev/null
+    echo "note: asan_uaf reported and did not exit; watchdog killed it after ${n} ticks"
+  else
+    wait "$pid" 2>/dev/null
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      cat "$TMP/asan_uaf.out"
+      fail "G7:F1 asan_uaf rc=0 (AddressSanitizer did not catch the UAF)"
+    fi
   fi
   if ! grep -q 'AddressSanitizer' "$TMP/asan_uaf.out"; then
     cat "$TMP/asan_uaf.out"
@@ -262,6 +347,7 @@ case "$CASE" in
   g1-command) g1_command ;;
   g1-phase-card) g1_phase_card ;;
   g3-ph01) g3_ph01 ;;
+  g3-ph02) g3_ph02 ;;
   g4-static) g4_static ;;
   g5-anchor) g5_anchor ;;
   g6-contract) g6_contract ;;
@@ -272,6 +358,7 @@ case "$CASE" in
     g1_command
     g1_phase_card
     g3_ph01
+    g3_ph02
     g4_static
     g5_anchor
     g6_contract
@@ -279,7 +366,7 @@ case "$CASE" in
     g7_leak
     ;;
   *)
-    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card|g3-ph01 [r02|r05|r06|r09]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|all}"
+    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|all}"
     exit 2
     ;;
 esac

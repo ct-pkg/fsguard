@@ -1,0 +1,82 @@
+/*
+ * R-11 last_error / clear_error 契约。
+ *
+ * $ bash tools/check.sh g3-ph02 r11
+ *
+ * 判据 3（旧指针内容已变）按 PH-02 卡 H-7 不作断言：free 后的旧指针
+ * 内容不是稳定后条件，读取它本身是 UAF。这里断言「新错误覆盖当前
+ * last_error」与「成功操作清错」这两条可二值判定的行为。
+ */
+import fsguard::FsGuard;
+#include <stdio.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+static int total = 0;
+static int failed = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+int main(void)
+{
+    char buf[16];
+    char path[128];
+    FsGuard *g;
+    FsError *e1;
+    FsError *e2;
+    int fd;
+
+    strcpy(path, "/tmp/fsguard_ph02_r11.txt");
+    fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd >= 0) close(fd);
+
+    g = fsguard::fsguard_new(0);
+    check(g->has_error() == 0 && g->last_error() == 0, "fresh object has no error");
+
+    check(g->read_file("/tmp/fsguard_ph02_missing", buf, 16) == FS_ERR_NOT_FOUND,
+          "missing file fails");
+    check(g->has_error() == 1, "failure sets has_error");
+    e1 = g->last_error();
+    check(e1 != 0, "failure exposes last_error");
+    check(e1->code == FS_ERR_NOT_FOUND, "error code matches the return value");
+    check(e1->path != 0 && e1->path[0] == '/', "error path is the normalised input");
+    check(e1->message != 0 && strlen(e1->message) > 0, "error message is not empty");
+
+    e2 = g->last_error();
+    check(e1 == e2, "last_error is a stable borrow between operations");
+
+    check(g->check("/workspace/a") == FS_OK, "next operation succeeds");
+    check(g->has_error() == 0 && g->last_error() == 0, "successful operation clears the error");
+
+    check(g->read_file("/tmp/fsguard_ph02_missing", buf, 16) == FS_ERR_NOT_FOUND,
+          "second failure");
+    check(g->last_error()->code == FS_ERR_NOT_FOUND, "second failure sets a fresh error");
+    g->clear_error();
+    check(g->has_error() == 0 && g->last_error() == 0, "clear_error resets the error");
+    delete g;
+
+    g = fsguard::fsguard_new("/ws");
+    check(g->check("/etc/passwd") == FS_ERR_OUT_OF_BOUNDS, "check failure is recorded too");
+    check(g->last_error()->path != 0, "check failure carries a normalised path");
+    g->clear_error();
+    check(g->last_error() == 0, "clear_error works after check failure");
+
+    delete g;
+    unlink(path);
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}
