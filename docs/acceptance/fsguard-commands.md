@@ -121,3 +121,24 @@ $ bash tools/check.sh g7-asan
 # rc=0
 # Linux 追加：ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak
 ```
+
+## 附：与 std 的语义差异（D-011）
+
+fsguard 与 `ct-pkg/std` 0.2.0 是兄弟包；fsguard 不依赖 std（`ct.pkg` 零 `dep`），门禁不需要
+`vendor/std`。两者可在同一编译单元共存，`char *` 方法名不冲突。以下差异按 std 实测口径记录，
+**不得当成等价实现互相替换**：
+
+| 项 | `std::fs` / `std::io` | fsguard | 归属 |
+| --- | --- | --- | --- |
+| 读目录 | `readFile` 返回 0 | `FS_ERR_IS_DIR` | fsguard 对；std 已知缺口（S-1） |
+| 失败分类 | 统一 `-1`（`open` 为 NULL） | `FS_ERR_NOT_FOUND` / `PERMISSION` / `IS_DIR` / … | fsguard；R-14 依赖 |
+| 二进制写 | `writeFile` 按 `strlen`，不能含 NUL | `write_file(path, data, len)` 按 `len` | fsguard；R-12/D-006 依赖 |
+| offset 读 | 无 `seek` | `read_chunk(path, offset, buf, len)` | fsguard |
+| 目录遍历 | `list` 单层、`\n` 拼接、无类型 | `walk` 递归、`is_dir`、可剪枝 | fsguard |
+| 路径规范化 / 段边界 | 无（只有 `std::str` 字节方法） | `normalize_to` / `is_under` | fsguard |
+| 存在性 / 单层便捷列目录 / 整文件替换 | `exists` / `list` / `writeFile` | 不提供 | std |
+
+路径语义与递归遍历留在 fsguard 的理由：它们与 `check`、`FS_ERR_*`、deny 剪枝同属策略层；
+std 的定位是「四个整文件/单层原语」，把策略语义塞回 std 会让 std 承担错误码与遍历策略。
+对 std 的能力建议（mkdir/remove/rename、写 NUL、offset 读等）只记录在
+`docs/reviews/fsguard-std-overlap.md` §6，不改 std 仓库。

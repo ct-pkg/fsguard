@@ -41,6 +41,23 @@ delete g;
    - 不承诺遍历顺序。
 4. `normalize_to` 的 `out` 与输入重叠是错误用法，实现会返回 -1 并清空 `out`（D-008）。
 
+## 与 `ct-pkg/std` 的分工
+
+fsguard 不依赖 std（`ct.pkg` 零 `dep`），两者可在同一编译单元共存，`char *` 方法名不冲突
+（D-011）。分工与语义差异如下，**不要混用**：
+
+| 能力 | 提供方 | 说明 |
+| --- | --- | --- |
+| 存在性、整文件便捷读写、单层列目录 | `std::fs` | `exists` / `readFile` / `writeFile` / `list`；失败统一 `-1`，无 errno |
+| 策略检查、错误码、二进制读写、offset 读、递归遍历 | fsguard | 需要 `FS_ERR_*` 分类与 `len` 语义，std 的返回面表达不了 |
+
+- `std::fs.readFile` 读目录返回 0（把目录当空文件）；fsguard 返回 `FS_ERR_IS_DIR`。
+- `std::fs.readFile` / `writeFile` 失败统一 `-1`；fsguard 返回 `FS_ERR_NOT_FOUND` / `FS_ERR_PERMISSION` / `FS_ERR_IS_DIR` 等。
+- `std::fs.writeFile` 按 `strlen` 写、不能含 NUL；`write_file` 按 `len` 写二进制。
+- `std::fs.list` 单层、用 `\n` 拼接、不区分类型、不递归；`walk` 递归、带 `is_dir`、可剪枝。
+- std 不提供 `normalize_to` / `is_under` / 段边界；这些由 fsguard 提供。
+- 两边都是 POSIX 取向：`std::fs.list` 在 Windows 不可用，fsguard 的 `walk` 同样依赖 `opendir`。
+
 ## 文档
 
 - [提案原文](docs/proposal.md)

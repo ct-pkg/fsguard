@@ -134,6 +134,9 @@ fsg  write-dir=5
 | S-2 | `std_fs_write_file` 考虑长度参数或指向 `std::io::File.write(buf, n)` | 含 `\0` 的数据被截断 | 二进制写入需要另一条路径；文档已声明，优先级低 |
 | S-3 | 若要支持上层错误分类，`std::io` 可加 errno 访问器（C shim 里 `errno` 是宏，CT 侧需要访问器） | fsguard 已用 `fsgo_errno()` 绕开 | 属 std 的 API 设计选择，不建议为 fsguard 单独加 |
 | S-4 | 路径规范化 / 段边界 / 递归遍历 / offset 读**不建议**进 std | std 现有定位是「四个整文件/单层原语」 | 这些语义带策略与错误码，属 fsguard；std 保持薄层更稳 |
+| S-5 | 补 `mkdir` / `remove` / `rename` | `std/fs/README.md` §1 明写不提供 | 目前只能直接调 C API；若 std 增补，fsguard 也不应包装策略 |
+| S-6 | `writeFile` 支持长度参数或指向 `File.write(buf, n)` | 含 `\0` 的数据被截断（同 S-2） | 二进制写出路只有 `std::io::File` |
+| S-7 | `IoFile` 增加 `seek` / offset 读 | `std::io` 只有顺序 `read` | 分块读只能整读或自己用 C；fsguard 的 `read_chunk` 因此自留 |
 
 ## 7 安装与消费的边界问题（与 std 无关，但由本次安装暴露）
 
@@ -153,4 +156,18 @@ ctc: cannot resolve import 'fsguard/FsGuard'
 
 ## 8 对照结论（一句话）
 
-**fsguard 的 12 个公开符号没有一个与 std 的公开符号重复**；最接近的 `read_file` / `write_file` 是「同形不可替代」——std 的 `-1` 错误面无法承载 fsguard 的错误码与二进制语义，`normalize_to` / `is_under` / `read_chunk` / `walk` 在 std 里没有对应物，std 的 `exists` / `list` / `String` / `io` 也不该由 fsguard 重造。详细裁定与配合方式见 `docs/decisions/D-011.md`。
+**fsguard 的 12 个公开符号没有一个与 std 的公开符号重复**；最接近的 `read_file` / `write_file` 是「同形不可替代」——std 的 `-1` 错误面无法承载 fsguard 的错误码与二进制语义，`normalize_to` / `is_under` / `read_chunk` / `walk` 在 std 里没有对应物，std 的 `exists` / `list` / `String` / `io` 也不该由 fsguard 重造。
+
+按「直接改实现、删掉重复部分」的指示逐函数复核后，**可删代码为 0 行**：
+
+| 候选 | 能否改成依赖 std | 卡点 |
+| --- | --- | --- |
+| `FsGuard::read_file` | 否 | std 无 errno；目录返回 0；换掉丢 R-14 的分类 |
+| `FsGuard::write_file` | 否 | std 按 `strlen`；换掉丢二进制与返回 `len`（R-12 / D-006） |
+| `FsGuard::read_chunk` / `char *::read_chunk` | 否 | std 无 offset / `seek` |
+| `walk` | 否 | `list` 单层 + `\n` 拼接；且 walker 在 C shim，调不到 CT 的映射方法 |
+| `fsguard_errno_to_code` | 否 | std 不暴露 errno |
+
+另一个硬约束：硬依赖 std 需要每个消费者与门禁都 `vendor/std`，而 `vendor/std` 不进版本库（主控约束），
+构建会变成非自足；因此 D-011 的「零依赖」同时是工程约束。详细裁定见 `docs/decisions/D-011.md`。
+

@@ -108,6 +108,7 @@
 ## 8 与 `ct-pkg/std` 的关系（D-011）
 
 - 已按 `ct get` / `ct install` 核对 `std` 0.2.0（tag `v0.2.0`，`b04b7d6`）：`std::fs` 只有 `exists` / `readFile` / `writeFile` / `list`，`std::io` 只有 `open` / `read` / `write` / `close`，`std::str` 只有字节级方法；**没有**路径规范化、段边界、递归遍历、offset 读、errno。
-- 符号级对照见 `docs/reviews/fsguard-std-overlap.md`：fsguard 的 12 个公开符号与 std 零重复；`read_file` / `write_file` 同形但不可替代（std 目录读返回 0、失败统一 `-1`、按 `strlen` 写）。
-- 结论（D-011）：不新增 `std` 依赖、不拆 path 包；std 缺失的语义继续由 fsguard 提供；对 std 的四条建议只记录、不改 std 仓库。
+- 符号级对照见 `docs/reviews/fsguard-std-overlap.md`：fsguard 的 12 个公开符号与 std 零重复；`read_file` / `write_file` 同形但不可替代（std 目录读返回 0、失败统一 `-1`、按 `strlen` 写）。按「直接改实现」逐函数复核后**可删 0 行**。
+- 结论（D-011）：不新增 `std` 依赖、不拆 path 包；std 缺失的语义继续由 fsguard 提供；对 std 的建议只记录、不改 std 仓库。硬依赖 std 需要每个消费者与门禁都持有 `vendor/std`，而 `vendor/std` 不进版本库，构建会失去自足性。
+- 语义差异同时写进 `README.md` 与 `docs/acceptance/fsguard-commands.md` 的附表，门禁 `g0-decisions` 核对这两处存在。
 - 由安装暴露的包形态缺口：`ct install` 只打印 `-I vendor/<包名>`，而 fsguard 的单元在 `src/fsguard/`，消费者实测报 `cannot resolve import 'fsguard/FsGuard'`；归 **PH-04**。

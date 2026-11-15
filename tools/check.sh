@@ -38,7 +38,11 @@ g0_decisions() {
     || fail "G0: D-011 evidence missing symbol table section"
   grep -q '^## 5 语义冲突' docs/reviews/fsguard-std-overlap.md \
     || fail "G0: D-011 evidence missing semantics section"
-  pass "g0-decisions: V-001 + D-001…D-011 have all 13 fields; no std dep; single namespace"
+  grep -q '与 `ct-pkg/std` 的分工' README.md \
+    || fail "G0: README missing the std division-of-labor section (D-011)"
+  grep -q '与 std 的语义差异' docs/acceptance/fsguard-commands.md \
+    || fail "G0: acceptance commands missing the std semantics addendum (D-011)"
+  pass "g0-decisions: V-001 + D-001…D-011 have all 13 fields; no std dep; single namespace; std differences documented"
 }
 
 g1_command() {
