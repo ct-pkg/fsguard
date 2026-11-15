@@ -9,7 +9,7 @@ roadmap: docs/planning/fsguard-roadmap.md
 
 ## 目标
 
-把不依赖外部条件的工作先做完：文档口径一次改齐、R-15 的 `a\b` 字面断言、R-16 的 README 能力对照表、FSR-02/03 已知绕过负例进普通门禁。依赖包机制、编译器能力或 Linux 的四项（R-01 判据 2/3、R-03 判据 1/2/3、R-02 限定名、R-17 LSan 记录）**只写进本卡并挂起**，不伪造通过证据。
+把不依赖外部条件的工作先做完：文档口径一次改齐、R-15 的 `a\b` 字面断言、R-16 的 README 能力对照表、FSR-02/03 已知绕过负例进普通门禁。依赖共享库或 Linux 的两项（R-03 判据 1/2/3、R-17 LSan 记录）**只写进本卡并挂起**；R-01 判据 2/3 与 R-02 限定名按 D-013（B-002 battle）移出本相，去向与触发条件见「裁定记录」，不伪造通过证据。
 
 ## 范围
 
@@ -20,18 +20,18 @@ roadmap: docs/planning/fsguard-roadmap.md
 3. R-16 判据 3：README「能力对照表」与实现方法一一对应，并加门禁 grep（`g3-ph04 all`）。
 4. FSR-02/03 两条已知绕过负例进普通门禁，**断言「绕过成立」**（不是断言被拒），用例名带 `known_bypass`、断言落到根外内容本身、文件头写明不是安全保证；FSR-04 只写文档 + 手工清单，不进 CI。
 
-**后半（现在只写进卡，挂起）**
+**后半（R-03、R-17 挂起；R-01 2/3、R-02 已按 D-013 移出）**
 
-| 项 | 挂起条件（逐条） |
+| 项 | 状态与条件（逐条） |
 | --- | --- |
-| R-01 判据 2/3：消费者只 import `.m.ct` 的消费者测试 | **等 `ns-root`/包机制能标准安装**：`ct install` 目前只打印 `-I vendor/fsguard`，而单元在 `src/fsguard/`，消费者实测 `cannot resolve import 'fsguard/FsGuard'`；包布局或安装器修好后，把消费者测试接进 `g3-ph04` |
+| R-01 判据 2/3：消费者只 import `.m.ct` 的消费者测试 | **已移出 PH-04（D-013）**：上游 `ns-root`/包机制已交付（v0.55.0 定根、v0.58.0 读 lock；PKG-2 已解决），本机 v0.58.0 实测 `ct install` 打印 `-I …/src`、`ct build` 不再报 `cannot resolve import`；剩余是本仓 `publisher`/`ns-root` 未提交与消费者夹具，转打包 1.1 与 PH-05 首任务，判据原文不动 |
 | R-03 判据 1/2/3：`std::fs` / `std::str` 共存与同名 `walk` 的歧义/限定调用 | **依赖共享库机制落地后才转门禁，期间保持未实施**：需要两个 `map trait` 在同一单元映射同名方法并支持 `FsGuardOps::walk(...)` 限定调用；当前不写假通过的负例 |
-| R-02 限定名断言：`FsErrCode::FS_ERR_*` | **等 CT 支持 `Type::Member`**：ct 0.53.0 仍报 `qualified type names are not supported`；升级后复跑 `test/fsguard/r02_errors.ct` 的限定名用例 |
+| R-02 限定名断言：`FsErrCode::FS_ERR_*` | **已移出 PH-04（D-013）**：上游 `Type::Member` 仍缺（LANG-15 open，排 PH-57 / v0.59.0；本机 v0.58.0 实测报 `qualified type names are not supported`）；转 PH-05，触发 `ct >= v0.59.0` 后复跑限定名用例 |
 | R-17 Linux LSan 记录回填 | **等一台 Linux**：`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 后按模板回填 `docs/reviews/fsguard-lsan-linux.md`；`g7-lsan-record` 保持红 |
 
 **不做什么**
 
-- 不实施后半四项，不写占位记录、不写跳过的消费者测试。
+- 不实施后半挂起项（R-03、R-17）；R-01 判据 2/3 与 R-02 按 D-013 移出本相，不在本相实施，也不写占位记录或跳过用例。
 - 不改防护实现（D-012）；不改 `ct-pkg/std`；不动 `.ai-engineering`；不把 `g7-lsan-record` 并入 `all`。
 - 不把命名空间目录上移到仓库根（`ct install` 的 `src/` 布局缺口只登记）。
 
@@ -58,6 +58,16 @@ roadmap: docs/planning/fsguard-roadmap.md
 | T-05 | FSR-04 手工清单 | `bash tools/check.sh g3-ph04 all` | S | `git revert <T-05 提交>` |
 | T-06 | 卡面挂起项与门禁收口 | `bash tools/check.sh all` | S | `git revert <T-06 提交>` |
 
+## 裁定记录
+
+| 项 | 内容 |
+| --- | --- |
+| battle | `docs/reviews/fsguard-r01-r02-battle.md`（B-002，裁定 C） |
+| 决策 | `docs/decisions/D-013.md`（签字：主控（用户授权 2026-11-16 battle）） |
+| R-01 判据 2/3 去向 | 打包 1.1（提交 `publisher`/`ns-root`）+ PH-05 首任务；验收必须实际 build + 运行，不得只看 `ct install` rc=0（PKG-6 open） |
+| R-02 限定名去向 | PH-05；触发条件 `ct >= v0.59.0`（LANG-15 / PH-57）后复跑限定名用例，未触发前不实施 |
+| 不变 | 判据原文、验收命令与需求条目不动；R-03、R-17 仍挂起，PH-04 仍不得收口 |
+
 ## 退出判据
 
 | # | 判据 | 验证 | 期望 |
@@ -68,8 +78,8 @@ roadmap: docs/planning/fsguard-roadmap.md
 | E-4 | FSR-02/03：`check` 通过后换软链，读到根外哨兵；硬链接读根外 inode；失败提示要求重开 D-012 | `bash tools/check.sh g3-ph04 r18` | rc=0；不支持硬链接时 rc=3 + `skip:`，不算通过 |
 | E-5 | FSR-04 手工清单含 `hdiutil`、`mount --bind`、`weaker variant`、`userns` | `bash tools/check.sh g3-ph04 all` | rc=0 |
 | E-6 | 前半全绿 | `bash tools/check.sh all` | rc=0（`g7-leak` 在 Darwin SKIP；`g7-lsan-record` 单独跑，仍红） |
-| E-7 | 后半四项仍挂起，卡内四条挂起条件齐全 | `bash tools/check.sh g3-ph04 all` | rc=0，卡内含 `ns-root`、`Type::Member`、`一台 Linux`、`PH-04 不得收口` |
-| E-8 | **前半全绿 + 后半仍挂起时 PH-04 不得收口** | 人工核对 | 卡状态保持 `in-progress`，不得改 `closed` |
+| E-7 | 后半两项（R-03、R-17）仍挂起；R-01 判据 2/3 与 R-02 已按 D-013 移出 | `bash tools/check.sh g3-ph04 all` | rc=0，卡内含 `ns-root`、`Type::Member`、`一台 Linux`、`PH-04 不得收口` |
+| E-8 | **前半全绿 + R-03/R-17 仍挂起时 PH-04 不得收口**（R-01/R-02 移出不免除这两项） | 人工核对 | 卡状态保持 `in-progress`，不得改 `closed` |
 | E-9 | 任务清单每项可独立验收（6.6 T-6） | 人工核对 | 是 |
 
 ## 依赖

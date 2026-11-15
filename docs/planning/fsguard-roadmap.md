@@ -74,6 +74,8 @@
 | `FS_ERR_NOT_DIR` | PH-01 | 映射 `ENOTDIR` 或删除成员，二选一 |
 | `ELOOP` | PH-02 | R-14 表加归类 + 环用例 |
 | LSan 记录未回填 | PH-04 | Linux 跑 `ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak`，把 host、命令与原始输出回填 `docs/reviews/fsguard-lsan-linux.md`；`g7-lsan-record` 判红直到记录存在 |
+| R-01 判据 2/3（消费者 import） | PH-05（先做打包 1.1） | 上游已交付（PKG-2 已解决；本机 ct v0.58.0 实测 import 已解析）。先提交 `publisher`/`ns-root`（打包 1.1），再建消费者夹具：只 `import fsguard::FsGuard`、不手写 import 根，C 头包含根用 `--cflags "-I<ns-root>"`，实际 build + 运行后接进门禁；`ct install` rc=0 不作为解析证明（PKG-6 open）。见 D-013 |
+| R-02 判据 2（限定名取值） | PH-05 | 触发：`ct >= v0.59.0`（LANG-15 / PH-57 发布）后复跑 `FsErrCode::FS_ERR_*` 用例；未触发前不实施、不写跳过用例。见 D-013 |
 | FSR-15（walk 根缺失） | PH-03 | 已收口：`g3-ph03 r07` 覆盖根不存在 → -1 + 冻结码、0 回调 |
 | FSR-16（`normalize_to` 重叠） | PH-01 | 已收口：D-008 + `g3-ph01 r05` 的重叠拒绝用例 |
 
