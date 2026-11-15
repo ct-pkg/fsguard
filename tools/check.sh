@@ -17,12 +17,15 @@ g0_decisions() {
   grep -q 'verdict_id: V-001' docs/reviews/fsguard-verdict.md || fail "G0: missing verdict_id: V-001"
   [ -f docs/decisions/D-001.md ] || fail "G0: missing docs/decisions/D-001.md"
   [ -f docs/decisions/D-002.md ] || fail "G0: missing docs/decisions/D-002.md"
-  for f in docs/decisions/D-001.md docs/decisions/D-002.md; do
+  [ -f docs/decisions/D-003.md ] || fail "G0: missing docs/decisions/D-003.md"
+  [ -f docs/decisions/D-004.md ] || fail "G0: missing docs/decisions/D-004.md"
+  [ -f docs/decisions/D-005.md ] || fail "G0: missing docs/decisions/D-005.md"
+  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md; do
     for field in id date anchor status trigger verdict judge seats scope criteria rationale invalidation affected; do
       grep -q "^${field}:" "$f" || fail "G0: $f missing field: $field"
     done
   done
-  pass "g0-decisions: V-001 + D-001/D-002 have all 13 fields"
+  pass "g0-decisions: V-001 + D-001…D-005 have all 13 fields"
 }
 
 g1_command() {
@@ -56,30 +59,42 @@ g4_static() {
     grep -q "$t" "$f" || fail "G4: missing threat term $t"
   done
   grep -q 'FS_ERR_NOT_DIR' "$f" || fail "G4: missing NOT_DIR disposition"
-  grep -q 'Q-3' "$f" || fail "G4: missing Q-3"
-  grep -q 'Q-4' "$f" || fail "G4: missing Q-4"
-  grep -q 'Q-7' "$f" || fail "G4: missing Q-7"
-  grep -q 'Q-5.*已裁' "$f" || fail "G4: Q-5 not marked resolved"
-  grep -q 'Q-6.*已裁' "$f" || fail "G4: Q-6 not marked resolved"
-  pass "g4-static: 5 threat terms, NOT_DIR, Q-3/4/7 unresolved, Q-5/6 resolved"
+  grep -q 'ELOOP' "$f" || fail "G4: missing ELOOP disposition"
+  grep -q 'LSan' "$f" || fail "G4: missing LSan disposition"
+  grep -q '| Q-2 | 未裁' "$f" || fail "G4: Q-2 not marked open"
+  grep -q '| Q-3 | 已裁' "$f" || fail "G4: Q-3 not marked resolved"
+  grep -q '| Q-4 | 已裁' "$f" || fail "G4: Q-4 not marked resolved"
+  grep -q '| Q-5 | 已裁' "$f" || fail "G4: Q-5 not marked resolved"
+  grep -q '| Q-6 | 已裁' "$f" || fail "G4: Q-6 not marked resolved"
+  grep -q '| Q-7 | 已裁' "$f" || fail "G4: Q-7 not marked resolved"
+  pass "g4-static: 5 threat terms, NOT_DIR/ELOOP/LSan, Q-2 open, Q-3…Q-7 resolved"
 }
 
 g5_anchor() {
   f=docs/acceptance/fsguard-status.md
   [ -f "$f" ] || fail "G5: missing $f"
+  grep -q 'R-05' "$f" || fail "G5: missing R-05"
+  grep -q 'Q-3' "$f" || fail "G5: missing Q-3"
+  grep -q 'D-003' "$f" || fail "G5: missing D-003"
   grep -q 'R-06' "$f" || fail "G5: missing R-06"
   grep -q 'Q-6' "$f" || fail "G5: missing Q-6"
   grep -q 'D-002' "$f" || fail "G5: missing D-002"
+  grep -q 'R-07' "$f" || fail "G5: missing R-07"
+  grep -q 'Q-4' "$f" || fail "G5: missing Q-4"
+  grep -q 'D-004' "$f" || fail "G5: missing D-004"
+  grep -q 'R-10' "$f" || fail "G5: missing R-10"
+  grep -q 'Q-7' "$f" || fail "G5: missing Q-7"
+  grep -q 'D-005' "$f" || fail "G5: missing D-005"
   lines="$(wc -l < docs/reviews/fsguard-verdict.md | tr -d ' ')"
   [ "$lines" -le 300 ] || fail "G5: verdict has $lines lines (>300)"
-  pass "g5-anchor: R-06/Q-6/D-002 present; verdict $lines lines"
+  pass "g5-anchor: R-05/R-06/R-07/R-10 + Q-3/4/6/7 + D-002/3/4/5; verdict $lines lines"
 }
 
 g6_contract() {
   c="$TMP/contract"
   mkdir -p "$c/docs/acceptance" "$c/docs/decisions" "$c/docs/reviews"
   cp docs/acceptance/fsguard-commands.md "$c/docs/acceptance/fsguard-commands.md"
-  cp docs/decisions/README.md docs/decisions/D-001.md docs/decisions/D-002.md "$c/docs/decisions/"
+  cp docs/decisions/README.md docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md "$c/docs/decisions/"
   cp docs/reviews/fsguard-verdict.md "$c/docs/reviews/fsguard-verdict.md"
   awk '
     /^## R-09 / { inr=1; print; next }

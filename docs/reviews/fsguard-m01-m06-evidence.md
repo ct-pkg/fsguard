@@ -1,6 +1,7 @@
 # M-01…M-06 红绿证据
 
 > 环境：macOS，基线 `dfa2ffd`。红证全部在 `/tmp/fsguard-red-*` 副本上做，未提交。  
+> 后续 D-003…D-005 扩展了 g0/g4/g5 的检查范围；当前口径与红绿输出以 `docs/reviews/fsguard-d003-d005-evidence.md` 为准。
 > 范围调整：M-04/M-05 原判据要求改 `requirements.md` 正文；本轮纪律禁止改正文，检查对象改为 `docs/acceptance/fsguard-status.md`（状态口径），判据意图不变。
 
 ## M-01 评审载体与编号
