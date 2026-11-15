@@ -169,7 +169,25 @@ RC=1
 | --- | --- | --- |
 | R-01 判据 2/3 | 挂起 | `ct install` 只打印 `-I vendor/fsguard`，单元在 `src/fsguard/`，消费者实测 `cannot resolve import 'fsguard/FsGuard'`；等 `ns-root`/包机制能标准安装 |
 | R-03 判据 1/2/3 | 挂起 | 需共享库机制支持两个 `map trait` 同名方法与 `FsGuardOps::walk(...)` 限定调用；期间 `g3-ph04 all` 只核对卡内标注 |
-| R-02 限定名 | 挂起 | 当前 `ct v0.58.0` 未复跑该用例（本机未验证是否已支持 `Type::Member`）；卡内仍记「等 CT 支持」 |
+| R-02 限定名 | 挂起 | 当前 `ct v0.58.0` 仍不支持，见下方探针；卡内挂起条件成立 |
+
+R-02 探针（`/tmp` 临时文件，不改仓库）：
+
+```console
+$ cat probe.ct
+import fsguard::FsGuard;
+#include <stdio.h>
+int main(void) {
+    int c = FsErrCode::FS_ERR_NOT_FOUND;
+    printf("%d\n", c);
+    return 0;
+}
+$ cd /tmp/r02probe && ~/.local/bin/ct build probe.ct -I /Users/samxx/trae-ws/ct-fsguard/src --cflags "-I/Users/samxx/trae-ws/ct-fsguard/src" -o probe
+probe.ct:4:40: error: no variable of that name in that namespace (qualified type names are not supported; use the bare name or an alias import)
+BUILD_RC=1
+```
+
+结论：能力缺口从 `0.53.0` 延期到 `0.58.0` 仍未解除，R-02 判据的限定名断言继续挂起；卡面仍写 `0.53.0` 属事实陈旧，但不改变挂起结论。
 | R-17 Linux LSan | 挂起 | 无 Linux 主机，`docs/reviews/fsguard-lsan-linux.md` 不存在；`g7-lsan-record` rc=1 |
 
 R-02 一项本轮只复述卡面挂起条件，未做「是否已支持」的新判定；若需提前解锁，需单独跑 `test/fsguard/r02_errors.ct` 的限定名用例并更新判据。
