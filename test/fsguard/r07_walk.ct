@@ -1,0 +1,169 @@
+/*
+ * R-07 char *::walk：集合相等、root 回调、深度、中断、深树、借用。
+ *
+ * $ bash tools/check.sh g3-ph03 r07
+ */
+import fsguard::FsGuard;
+import fsguard::FsGuardOps;
+#include <stdio.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+static int total = 0;
+static int failed = 0;
+static char seen[64][256];
+static int seen_dir[64];
+static int seen_n = 0;
+static char *saved = 0;
+static int borrow_aliased = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+static int make_file(char *path)
+{
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) return -1;
+    close(fd);
+    return 0;
+}
+
+static int on_enter(char *entry, int is_dir, void *ud)
+{
+    if (seen_n < 64) {
+        strcpy(seen[seen_n], entry);
+        seen_dir[seen_n] = is_dir;
+        seen_n = seen_n + 1;
+    }
+    if (saved != 0 && saved == entry) borrow_aliased = 1;
+    saved = entry;
+    (void)ud;
+    return 0;
+}
+
+static int stop_at_second(char *entry, int is_dir, void *ud)
+{
+    (void)entry;
+    (void)is_dir;
+    (void)ud;
+    seen_n = seen_n + 1;
+    if (seen_n == 2) return 7;
+    return 0;
+}
+
+static int stop_at_root(char *entry, int is_dir, void *ud)
+{
+    (void)entry;
+    (void)is_dir;
+    (void)ud;
+    seen_n = seen_n + 1;
+    return 7;
+}
+
+static int is_dir_entry(char *path, int want)
+{
+    int i;
+    for (i = 0; i < seen_n; i++) {
+        if (strcmp(seen[i], path) == 0) return seen_dir[i] == want;
+    }
+    return 0;
+}
+
+int main(void)
+{
+    char root[128];
+    char p[192];
+    char *rp;
+    int i;
+    int rc;
+
+    strcpy(root, "/tmp/fsguard_ph03_tree");
+    rmdir(root);
+    mkdir(root, 0755);
+    strcpy(p, "/tmp/fsguard_ph03_tree/a");
+    mkdir(p, 0755);
+    strcpy(p, "/tmp/fsguard_ph03_tree/a/sub");
+    mkdir(p, 0755);
+    strcpy(p, "/tmp/fsguard_ph03_tree/b");
+    mkdir(p, 0755);
+    strcpy(p, "/tmp/fsguard_ph03_tree/c");
+    mkdir(p, 0755);
+    make_file("/tmp/fsguard_ph03_tree/a/f1");
+    make_file("/tmp/fsguard_ph03_tree/a/sub/f2");
+    make_file("/tmp/fsguard_ph03_tree/b/f3");
+    make_file("/tmp/fsguard_ph03_tree/f4");
+    make_file("/tmp/fsguard_ph03_tree/f5");
+    rp = root;
+
+    seen_n = 0;
+    saved = 0;
+    rc = rp.walk(on_enter, 0, 16);
+    check(rc == 0, "walk returns 0 on a complete tree");
+    check(seen_n == 10, "collection has 10 entries (root + 4 dirs + 5 files)");
+    check(strcmp(seen[0], root) == 0 && seen_dir[0] == 1, "root is visited first and is a dir");
+    check(is_dir_entry("/tmp/fsguard_ph03_tree/a", 1), "dir a is reported as dir");
+    check(is_dir_entry("/tmp/fsguard_ph03_tree/a/sub", 1), "nested dir is reported");
+    check(is_dir_entry("/tmp/fsguard_ph03_tree/a/f1", 0), "file under a is reported");
+    check(is_dir_entry("/tmp/fsguard_ph03_tree/a/sub/f2", 0), "2-level nested file is reported");
+    check(is_dir_entry("/tmp/fsguard_ph03_tree/b/f3", 0), "file under b is reported");
+    check(is_dir_entry("/tmp/fsguard_ph03_tree/f5", 0), "root file is reported");
+    check(borrow_aliased == 1, "entry buffer is reused across callbacks (borrow contract)");
+
+    seen_n = 0;
+    saved = 0;
+    rc = rp.walk(on_enter, 0, 0);
+    check(rc == 0 && seen_n == 1, "max_depth 0 visits only root");
+
+    seen_n = 0;
+    saved = 0;
+    rc = rp.walk(on_enter, 0, 1);
+    check(rc == 0 && seen_n == 6, "max_depth 1 visits root plus direct children");
+
+    seen_n = 0;
+    saved = 0;
+    rc = rp.walk(on_enter, 0, 2);
+    check(rc == 0 && seen_n == 9, "max_depth 2 stops before the 2-level file");
+
+    seen_n = 0;
+    rc = rp.walk(stop_at_second, 0, 16);
+    check(rc == 7 && seen_n == 2, "callback return 7 stops the walk and is returned");
+
+    seen_n = 0;
+    rc = rp.walk(stop_at_root, 0, 16);
+    check(rc == 7 && seen_n == 1, "root callback return 7 stops before any child");
+
+    strcpy(p, "/tmp/fsguard_ph03_deep");
+    rmdir(p);
+    mkdir(p, 0755);
+    for (i = 0; i < 20; i++) {
+        int n = (int)strlen(p);
+        snprintf(p + n, (size_t)(192 - n), "/d%d", i);
+        mkdir(p, 0755);
+    }
+    strcpy(p, "/tmp/fsguard_ph03_deep");
+    seen_n = 0;
+    saved = 0;
+    rc = p.walk(on_enter, 0, 16);
+    check(rc == 0 && seen_n == 17, "20-level tree with max_depth 16 stops at 17 entries");
+
+    seen_n = 0;
+    rc = "/tmp/fsguard_ph03_missing".walk(on_enter, 0, 4);
+    check(rc == -1 && seen_n == 0, "missing root returns -1 with zero callbacks");
+
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}

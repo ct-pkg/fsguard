@@ -21,13 +21,13 @@ g0_decisions() {
   [ -f docs/decisions/D-003.md ] || fail "G0: missing docs/decisions/D-003.md"
   [ -f docs/decisions/D-004.md ] || fail "G0: missing docs/decisions/D-004.md"
   [ -f docs/decisions/D-005.md ] || fail "G0: missing docs/decisions/D-005.md"
-  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md docs/decisions/D-006.md docs/decisions/D-007.md docs/decisions/D-008.md docs/decisions/D-009.md; do
+  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md docs/decisions/D-006.md docs/decisions/D-007.md docs/decisions/D-008.md docs/decisions/D-009.md docs/decisions/D-010.md; do
     [ -f "$f" ] || fail "G0: missing $f"
     for field in id date anchor status trigger verdict judge seats scope criteria rationale invalidation affected; do
       grep -q "^${field}:" "$f" || fail "G0: $f missing field: $field"
     done
   done
-  pass "g0-decisions: V-001 + D-001…D-009 have all 13 fields"
+  pass "g0-decisions: V-001 + D-001…D-010 have all 13 fields"
 }
 
 g1_command() {
@@ -57,9 +57,9 @@ g1_command() {
 g1_phase_card() {
   sel="${1:-all}"
   case "$sel" in
-    all) list="PH-01 PH-02" ;;
-    PH-01|PH-02) list="$sel" ;;
-    *) echo "usage: $0 g1-phase-card {PH-01|PH-02|all}"; exit 2 ;;
+    all) list="PH-01 PH-02 PH-03" ;;
+    PH-01|PH-02|PH-03) list="$sel" ;;
+    *) echo "usage: $0 g1-phase-card {PH-01|PH-02|PH-03|all}"; exit 2 ;;
   esac
   for ph in $list; do
     f="docs/phases/$ph/card.md"
@@ -180,6 +180,52 @@ g3_ph02() {
     echo "ok $name: $(grep -c '^ok ' "$TMP/$name.out") checks"
   done
   pass "g3-ph02: $sel green"
+}
+
+g3_ph03() {
+  CT="${CT:-$HOME/.local/bin/ct}"
+  [ -x "$CT" ] || fail "G3: ct not found at $CT (set CT=/path/to/ct)"
+  sel="${1:-all}"
+  case "$sel" in
+    r07) tests="r07_walk" ;;
+    r10) tests="r10_policy" ;;
+    r13) tests="r13_guard_walk" ;;
+    all) tests="r07_walk r10_policy r13_guard_walk" ;;
+    *) echo "usage: $0 g3-ph03 {r07|r10|r13|all}"; exit 2 ;;
+  esac
+  if [ "$sel" = all ]; then
+    n="$(grep -c 'static inline int fsgo_walk_node' src/fsguard/FsGuardOps.shim.h || true)"
+    [ "$n" -eq 1 ] || fail "G3:R-13 expected exactly one walker, got $n"
+    n="$(grep -c 'fsg_error_clear(self)' src/fsguard/FsGuard.h.ct || true)"
+    [ "$n" -eq 6 ] || fail "G3:R-11 expected 5 public ops + clear_error to call the clearer, got $n"
+    grep -q '下一次' README.md || fail "G3:R-11 README missing borrow-invalidation clause"
+  fi
+  for name in $tests; do
+    src="test/fsguard/$name.ct"
+    [ -f "$src" ] || fail "G3: missing $src"
+    "$CT" build "$src" -I src --cflags "-Isrc" -o "$TMP/$name" >"$TMP/$name.build" 2>&1
+    if [ $? -ne 0 ]; then
+      cat "$TMP/$name.build"
+      fail "G3: build $name failed"
+    fi
+    "$TMP/$name" >"$TMP/$name.out" 2>&1
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+      cat "$TMP/$name.out"
+      fail "G3: $name rc=$rc"
+    fi
+    if grep -q '^not ok' "$TMP/$name.out"; then
+      cat "$TMP/$name.out"
+      fail "G3: $name reported not ok"
+    fi
+    if grep -q '^skip' "$TMP/$name.out"; then
+      cat "$TMP/$name.out"
+      fail "G3: $name skipped a fixture (environment gap, not a pass)"
+    fi
+    grep -q 'all checks passed' "$TMP/$name.out"       || { cat "$TMP/$name.out"; fail "G3: $name missing summary line"; }
+    echo "ok $name: $(grep -c '^ok ' "$TMP/$name.out") checks"
+  done
+  pass "g3-ph03: $sel green"
 }
 
 g4_static() {
@@ -348,6 +394,7 @@ case "$CASE" in
   g1-phase-card) g1_phase_card "$@" ;;
   g3-ph01) g3_ph01 "$@" ;;
   g3-ph02) g3_ph02 "$@" ;;
+  g3-ph03) g3_ph03 "$@" ;;
   g4-static) g4_static ;;
   g5-anchor) g5_anchor ;;
   g6-contract) g6_contract ;;
@@ -359,6 +406,7 @@ case "$CASE" in
     g1_phase_card
     g3_ph01
     g3_ph02
+    g3_ph03
     g4_static
     g5_anchor
     g6_contract
@@ -366,7 +414,7 @@ case "$CASE" in
     g7_leak
     ;;
   *)
-    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|all}"
+    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g3-ph03 [r07|r10|r13]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|all}"
     exit 2
     ;;
 esac

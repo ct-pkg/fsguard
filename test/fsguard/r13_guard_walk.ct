@@ -1,0 +1,125 @@
+/*
+ * R-13 FsGuard::walk：逐项 check、deny 目录剪枝、root 越界、不可读目录。
+ *
+ * $ bash tools/check.sh g3-ph03 r13
+ */
+import fsguard::FsGuard;
+import fsguard::FsGuardOps;
+#include <stdio.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+static int total = 0;
+static int failed = 0;
+static int seen_n = 0;
+static char seen[32][192];
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+static int make_file(char *path)
+{
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) return -1;
+    close(fd);
+    return 0;
+}
+
+static int collect(char *entry, int is_dir, void *ud)
+{
+    (void)is_dir;
+    (void)ud;
+    if (seen_n < 32) {
+        strcpy(seen[seen_n], entry);
+        seen_n = seen_n + 1;
+    }
+    return 0;
+}
+
+static int has(char *path)
+{
+    int i;
+    for (i = 0; i < seen_n; i++) {
+        if (strcmp(seen[i], path) == 0) return 1;
+    }
+    return 0;
+}
+
+int main(void)
+{
+    char root[128];
+    char p[192];
+    char *rp;
+    FsGuard *g;
+    int rc;
+    int plain;
+
+    strcpy(root, "/tmp/fsguard_ph03_g");
+    rmdir(root);
+    mkdir(root, 0755);
+    strcpy(p, "/tmp/fsguard_ph03_g/secret");
+    mkdir(p, 0755);
+    strcpy(p, "/tmp/fsguard_ph03_g/secret/deep");
+    mkdir(p, 0755);
+    make_file("/tmp/fsguard_ph03_g/secret/x");
+    make_file("/tmp/fsguard_ph03_g/secret/deep/y");
+    strcpy(p, "/tmp/fsguard_ph03_g/keep");
+    mkdir(p, 0755);
+    make_file("/tmp/fsguard_ph03_g/keep/f");
+    rp = root;
+
+    seen_n = 0;
+    rc = rp.walk(collect, 0, 16);
+    plain = seen_n;
+    check(rc == 0 && plain == 7, "char *::walk sees all 7 entries");
+
+    g = fsguard::fsguard_new(root);
+    check(g->deny_pattern("/tmp/fsguard_ph03_g/secret") == g, "deny pattern set");
+    seen_n = 0;
+    rc = g->walk(root, collect, 0);
+    check(rc == 0, "guard walk completes when a subtree is denied");
+    check(seen_n == 3, "denied directory and its whole subtree produce 0 callbacks");
+    check(has(root), "root is still visited");
+    check(has("/tmp/fsguard_ph03_g/keep/f"), "sibling subtree is still visited");
+    check(!has("/tmp/fsguard_ph03_g/secret/x"), "denied child is not visited");
+    delete g;
+
+    g = fsguard::fsguard_new("/ws");
+    seen_n = 0;
+    rc = g->walk("/etc", collect, 0);
+    check(rc == FS_ERR_OUT_OF_BOUNDS, "out-of-bounds root returns OUT_OF_BOUNDS");
+    check(seen_n == 0, "out-of-bounds root produces 0 callbacks");
+    delete g;
+
+    strcpy(p, "/tmp/fsguard_ph03_g/locked");
+    mkdir(p, 0755);
+    make_file("/tmp/fsguard_ph03_g/locked/z");
+    if (geteuid() == 0) {
+        printf("skip unreadable-dir case: running as root\n");
+    } else {
+        chmod(p, 0);
+        g = fsguard::fsguard_new(root);
+        seen_n = 0;
+        rc = g->walk(root, collect, 0);
+        check(rc == FS_ERR_PERMISSION, "unreadable directory fails closed with PERMISSION");
+        chmod(p, 0755);
+        delete g;
+    }
+
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}
