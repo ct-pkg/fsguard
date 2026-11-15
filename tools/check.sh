@@ -257,21 +257,18 @@ g3_ph04() {
   [ -x "$CT" ] || fail "G3: ct not found at $CT (set CT=/path/to/ct)"
   sel="${1:-all}"
   case "$sel" in
-    r01) tests="r01_package" ;;
     r15) tests="r15_posix" ;;
     r18) tests="r18_known_bypass" ;;
-    all) tests="r01_package r15_posix r18_known_bypass" ;;
-    *) echo "usage: $0 g3-ph04 {r01|r15|r18|all}"; exit 2 ;;
+    all) tests="r15_posix r18_known_bypass" ;;
+    *) echo "usage: $0 g3-ph04 {r15|r18|all}"; exit 2 ;;
   esac
   if [ "$sel" = all ]; then
-    # R-01：包形态（pub trait 不带宿主、.h.ct/.m.ct 无 #define）。
+    # R-01 判据 1/4（包形态）：pub trait 不带宿主、.h.ct/.m.ct 无 #define。
+    # 判据 2/3（消费者测试）属后半，挂起，不在此断言。
     n="$(grep -rE 'pub trait [A-Za-z_][A-Za-z0-9_]* for char \*' src/fsguard | wc -l | tr -d ' ')"
     [ "$n" -eq 0 ] || fail "G3:R-01 found 'pub trait ... for char *' in src/fsguard"
     n="$(grep -cE '^[[:space:]]*#define' src/fsguard/*.h.ct src/fsguard/*.m.ct | awk -F: '{s+=$2} END {print s+0}')"
     [ "$n" -eq 0 ] || fail "G3:R-01 found $n #define in .h.ct/.m.ct"
-    f=test/fsguard/r01_package.ct
-    grep -q '^import fsguard::FsGuardOps;' "$f" || fail "G3:R-01 consumer must import fsguard::FsGuardOps"
-    grep -q '^import fsguard::FsGuard;' "$f" && fail "G3:R-01 consumer must not import fsguard::FsGuard"
     # R-15：MVP 无 Win32 分支。
     n="$(grep -ri 'win32' src/fsguard | wc -l | tr -d ' ')"
     [ "$n" -eq 0 ] || fail "G3:R-15 found $n Win32 references in src/fsguard"
@@ -286,10 +283,12 @@ g3_ph04() {
     [ "z$names" = "zis_under normalize_to read_chunk walk " ] \
       || fail "G3:R-16 trait method set changed (got: $names)"
     # R-03：依赖共享库机制，期间未实施；只核对标注，不伪造歧义用例。
-    for f in docs/phases/PH-04/card.md docs/acceptance/fsguard-status.md; do
-      grep -q '依赖共享库机制落地后才转门禁，期间保持未实施' "$f" \
-        || fail "G3:R-03 missing the deferred-by-shared-library marker in $f"
+    f=docs/phases/PH-04/card.md
+    for t in '依赖共享库机制落地后才转门禁，期间保持未实施' 'ns-root' 'Type::Member' '一台 Linux' 'PH-04 不得收口'; do
+      grep -q "$t" "$f" || fail "G3:R-03 missing suspension marker in card: $t"
     done
+    grep -q '依赖共享库机制落地后才转门禁，期间保持未实施' docs/acceptance/fsguard-status.md \
+      || fail "G3:R-03 missing the deferred-by-shared-library marker in status"
     # FSR-04：手工清单仍是唯一出口。
     f=docs/acceptance/fsguard-manual-checks.md
     [ -f "$f" ] || fail "G3:FSR-04 missing $f"
@@ -349,7 +348,18 @@ g4_static() {
   grep -q '| Q-5 | 已裁' "$f" || fail "G4: Q-5 not marked resolved"
   grep -q '| Q-6 | 已裁' "$f" || fail "G4: Q-6 not marked resolved"
   grep -q '| Q-7 | 已裁' "$f" || fail "G4: Q-7 not marked resolved"
-  pass "g4-static: 5 threat terms, NOT_DIR/ELOOP/LSan, Q-1…Q-7 resolved, D-006/D-009/D-012 anchored"
+  # PH-04 前半 T-01：六处文档口径。
+  grep -q 'D-001…D-012 后' "$f" || fail "G4: status title still names D-001…D-010"
+  grep -q '0\.44\.1' "$f" && fail "G4: status still cites the old ct 0.44.1"
+  grep -q '15 条可验收、2 条部分可验收' docs/planning/fsguard-roadmap.md \
+    || fail "G4: roadmap still carries the 13/4 counts"
+  for ph in PH-01 PH-02 PH-03; do
+    grep -q '^status: closed$' "docs/phases/$ph/card.md" || fail "G4: $ph card is not closed"
+  done
+  grep -q '超长路径.*已收口' "$f" || fail "G4: FSR-05 is not marked closed"
+  grep -q '符号链接环.*已收口' "$f" || fail "G4: FSR-06 is not marked closed"
+  grep -q '^| S-6 |' docs/reviews/fsguard-std-overlap.md && fail "G4: S-6 is still a separate row (merge into S-2)"
+  pass "g4-static: 5 threat terms, NOT_DIR/ELOOP/LSan, Q-1…Q-7 resolved, D-006/D-009/D-012 anchored, 6 doc re-statements current"
 }
 
 g5_anchor() {
@@ -565,7 +575,7 @@ case "$CASE" in
     exit 0
     ;;
   *)
-    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|PH-03|PH-04|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g3-ph03 [r07|r10|r13]|g3-ph04 [r01|r15|r18|all]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|g7-lsan-record|all}"
+    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|PH-03|PH-04|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g3-ph03 [r07|r10|r13]|g3-ph04 [r15|r18|all]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|g7-lsan-record|all}"
     exit 2
     ;;
 esac

@@ -5,7 +5,7 @@
 
 ## 1 结论
 
-**PH-01/PH-02/PH-03 已收口：遍历与策略已落地；PH-04 已开工。** 需求口径上 17 条中 15 条可验收、2 条部分可验收（R-02/R-17）、0 条不可验收。剩余两项均已写明缺项与归属：R-02 缺 `FsErrCode::FS_ERR_*` 限定名（ct 0.53.0 仍不可表达，H-2 → PH-04）、R-17 缺 Linux LSan 实测记录回填（→ PH-04 / Linux CI）。H-7 已由 D-010 关闭。PH-04 已落 R-01 消费者测试、R-15 字面断言与 R-16 能力对照表；R-03 判据 3 **依赖共享库机制落地后才转门禁，期间保持未实施**。
+**PH-01/PH-02/PH-03 已收口：遍历与策略已落地；PH-04 按依赖切两半。** 需求口径上 17 条中 15 条可验收、2 条部分可验收（R-02/R-17）、0 条不可验收。前半已落 R-15、R-16 与 FSR-02/03/04 证据；后半挂起：R-01 判据 2/3（等 `ns-root`/包机制能标准安装）、R-03 判据 1/2/3（**依赖共享库机制落地后才转门禁，期间保持未实施**）、R-02 限定名（等 CT 支持 `Type::Member`）、R-17 Linux 记录（等一台 Linux）。前半全绿 + 后半仍挂起时 PH-04 不得收口。
 
 ## 2 威胁模型五处（承接 FSR-02…06）
 
@@ -37,9 +37,9 @@
 
 | R | 状态 | 依据 |
 | --- | --- | --- |
-| R-01 | **已实施** | `g3-ph04 r01`（4 checks）：消费者只 import `.m.ct`，四个方法与具名回调各自断言 |
-| R-02 | 部分 | 10 码与 `NOT_DIR` 已收口（D-009）；**缺项**：限定名 `FsErrCode::*` 在 ct 0.53.0 报 `qualified type names are not supported`（H-2）；**归属**：不在 PH-04 范围；触发条件为 ct 支持限定名后复跑 `test/fsguard/r02_errors.ct` 的限定名用例 |
-| R-03 | **未实施**（待共享库机制） | 判据 4（四名与 std 22 名交集为空）已由 `g3-ph04 all` 核对；判据 1/2 的共存形态已在 `docs/reviews/fsguard-std-overlap.md` §4 验证；**判据 3（两个 trait 同名 `walk` 的歧义/限定调用）依赖共享库机制落地后才转门禁，期间保持未实施** |
+| R-01 | 挂起（后半） | 判据 1/4（包形态、无 `#define`）已由 `g3-ph04 all` 核对；**判据 2/3 消费者测试等 `ns-root`/包机制能标准安装**：`ct install` 目前 `cannot resolve import 'fsguard/FsGuard'` |
+| R-02 | 部分 | 10 码与 `NOT_DIR` 已收口（D-009）；**缺项**：限定名 `FsErrCode::*` 在 ct 0.53.0 报 `qualified type names are not supported`（H-2）；**挂起（后半）：等 CT 支持 `Type::Member`**，升级后复跑 `test/fsguard/r02_errors.ct` 的限定名用例 |
+| R-03 | 挂起（后半） | 判据 4（四名与 std 22 名交集为空）已由 `g3-ph04 all` 核对；判据 1/2 的共存形态已在 `docs/reviews/fsguard-std-overlap.md` §4 验证；**判据 3（两个 trait 同名 `walk` 的歧义/限定调用）依赖共享库机制落地后才转门禁，期间保持未实施** |
 | R-04 | 可验收 | Q-5 已裁（D-001），负 offset→`FS_ERR_IO` |
 | R-05 | **可验收** | Q-3（D-003）与重叠拒绝（D-008）已裁；`g3-ph01 r05` 绿 |
 | R-06 | **可验收** | Q-6（D-002）与判据 1 示例（D-007）已裁；`g3-ph01 r06` 绿 |
@@ -53,7 +53,7 @@
 | R-14 | **可验收** | `ENOTDIR → NOT_DIR`、`ELOOP → IO`（D-009）；`g3-ph02 r14` 绿 |
 | R-15 | **已实施** | `g3-ph04 r15`（7 checks）：`a\b` 字面保留、`\` 不作段边界、驱动器形式不解析；`src` 无 Win32 |
 | R-16 | **已实施**（判据 1 待外部核对） | `g3-ph04 all` 核对 README「能力对照表」与 trait 四名；`std` 仓零改动只能在 std 侧只读 `git status` 确认 |
-| R-17 | 部分 | 判据 1–4 本机可执行（运行时夹具、门禁覆盖、集合排序、ASan）；**缺项**：判据 5 的 LSan 结论只能由 Linux 给出，当前**缺 Linux 实测记录回填**（`g7-lsan-record` 红）；**归属 PH-04 / Linux CI**：Linux 跑 `ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 后按 `docs/reviews/fsguard-lsan-linux.md.tmpl` 回填 |
+| R-17 | 部分 | 判据 1–4 本机可执行（运行时夹具、门禁覆盖、集合排序、ASan）；**缺项**：判据 5 的 LSan 结论只能由 Linux 给出，当前**缺 Linux 实测记录回填**（`g7-lsan-record` 红）；**挂起（后半）：等一台 Linux**，跑 `ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 后按 `docs/reviews/fsguard-lsan-linux.md.tmpl` 回填 |
 
 ## 5 锚点说明
 

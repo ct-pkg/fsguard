@@ -5,10 +5,10 @@
 ## R-01 包形态与文件分工
 
 ```console
-$ bash tools/check.sh g3-ph04 r01
+$ bash tools/check.sh g3-ph04 all
 # rc=0
-# 消费者只 import fsguard::FsGuardOps（.m.ct），不 import .h.ct；
-# 包内无 `pub trait … for char *`，.h.ct/.m.ct 无 #define。
+# 判据 1/4：包内无 `pub trait … for char *`，.h.ct/.m.ct 无 #define。
+# 判据 2/3（消费者测试）挂起（后半）：等 ns-root/包机制能标准安装。
 ```
 
 ## R-02 错误码枚举
@@ -16,6 +16,7 @@ $ bash tools/check.sh g3-ph04 r01
 ```console
 $ bash tools/check.sh g3-ph01 r02
 # rc=0
+# 限定名 FsErrCode::FS_ERR_* 挂起（后半）：等 CT 支持 Type::Member。
 ```
 
 ## R-03 命名共存
@@ -23,8 +24,8 @@ $ bash tools/check.sh g3-ph01 r02
 ```console
 $ bash tools/check.sh g3-ph04 all
 # rc=0
-# 判据 4（四名与 std 22 名交集为空）与共存形态已核对；
-# 判据 3（两个 trait 同名 walk 的歧义/限定调用）依赖共享库机制落地后才转门禁，期间保持未实施。
+# 判据 4（四名与 std 22 名交集为空）已核对；
+# 判据 1/2/3 挂起（后半）：依赖共享库机制落地后才转门禁，期间保持未实施。
 ```
 
 ## R-04 分块读
