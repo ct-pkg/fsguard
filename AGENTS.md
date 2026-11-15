@@ -263,11 +263,11 @@ AI_ENGINEERING_SPEC=<主规范路径> ...          # 覆盖默认主规范位置
 | --- | --- |
 | 对话清单 | 需求池 / 技术池 / 评审三类常驻对话；phase 对话按 9.3 命名：`[ct-fsguard] P<nn> · <目标一句话>` |
 | 任务-对话映射 | [docs/session-map.md](docs/session-map.md)（当前 3 列，待按 9.5 升到 4 列） |
-| 门禁入口 | 未建（本轮只做需求；`tools/check.sh` 待立项后建） |
+| 门禁入口 | `tools/check.sh`（`g0-decisions` / `g1-command` / `g1-phase-card` / `g3-ph01` / `g4-static` / `g5-anchor` / `g6-contract` / `g7-asan` / `g7-leak`） |
 | 文档 snippet | 未建（`docs/snippets/`，待首个可运行示例） |
 | Issue 台账 | 未建（`issues/<id>.md`，前缀 `FSG-<n>`） |
-| 决策记录 | 未建（`docs/decisions/D-<n>.md`；当前裁定见 [docs/requirements.md](docs/requirements.md) 与 [docs/design.md](docs/design.md)） |
-| 版本落点 | 未建（无 `ct.pkg`，README 无版本行；立项后按 6.7 落，收口前必须在同一提交内对齐所有落点） |
+| 决策记录 | 已建 `docs/decisions/`：D-001…D-005（均「已裁」，签字「主控（用户授权）」） |
+| 版本落点 | `ct.pkg#version`（当前 `0.1.0`；PH-01 的 `version-minor` 为 1） |
 | 偏离项 | 无（见 0.3） |
 
 ### 0.2 话术路由

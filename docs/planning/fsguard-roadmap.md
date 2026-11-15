@@ -82,4 +82,4 @@
 - 17 条 R 全部可验收，无「部分」状态。
 - `bash tools/check.sh g0-decisions`、`g1-command`、`g4-static`、`g5-anchor`、`g6-contract`、`g7-asan` 全绿；Linux `ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 绿。
 - 所有 D 裁定已落文件；无「待签」。
-- 达到以上条件后，才允许建 phase 卡与进入实施。
+- 达到以上条件后允许建 phase 卡；**roadmap 已批准 PH-01 开工**，卡见 `docs/phases/PH-01/card.md`。本条此前写作「才允许建 phase 卡」，由本轮批准覆盖，其余条件不变。
