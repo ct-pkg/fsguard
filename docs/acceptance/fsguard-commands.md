@@ -5,8 +5,10 @@
 ## R-01 包形态与文件分工
 
 ```console
-$ ct build examples/fsguard/r01_packaging.ct
+$ bash tools/check.sh g3-ph04 r01
 # rc=0
+# 消费者只 import fsguard::FsGuardOps（.m.ct），不 import .h.ct；
+# 包内无 `pub trait … for char *`，.h.ct/.m.ct 无 #define。
 ```
 
 ## R-02 错误码枚举
@@ -19,8 +21,10 @@ $ bash tools/check.sh g3-ph01 r02
 ## R-03 命名共存
 
 ```console
-$ ct build examples/fsguard/r03_name_coexist.ct
+$ bash tools/check.sh g3-ph04 all
 # rc=0
+# 判据 4（四名与 std 22 名交集为空）与共存形态已核对；
+# 判据 3（两个 trait 同名 walk 的歧义/限定调用）依赖共享库机制落地后才转门禁，期间保持未实施。
 ```
 
 ## R-04 分块读
@@ -103,15 +107,19 @@ $ bash tools/check.sh g3-ph02 r14
 ## R-15 POSIX 平台边界
 
 ```console
-$ ct run test/fsguard/r15_posix.ct
+$ bash tools/check.sh g3-ph04 r15
 # rc=0
+# `a\b` 按字面保留：不转 `/`、不作段边界、驱动器形式不解析；src 内无 Win32 分支。
 ```
 
 ## R-16 std::fs 零改动
 
 ```console
-$ ct run test/fsguard/r16_std_fs_untouched.ct
+$ bash tools/check.sh g3-ph04 all
 # rc=0
+# README「能力对照表」与本包符号一一对应；char * 上只有四个本包方法名。
+$ git -C <ct-pkg/std> status --porcelain
+# rc=0，输出为空（std 侧只读核对；本仓不使用也不修改 std）
 ```
 
 ## R-17 夹具与门禁
@@ -145,5 +153,6 @@ fsguard 与 `ct-pkg/std` 0.2.0 是兄弟包；fsguard 不依赖 std（`ct.pkg` �
 
 路径语义与递归遍历留在 fsguard 的理由：它们与 `check`、`FS_ERR_*`、deny 剪枝同属策略层；
 std 的定位是「四个整文件/单层原语」，把策略语义塞回 std 会让 std 承担错误码与遍历策略。
-对 std 的能力建议（mkdir/remove/rename、写 NUL、offset 读等）只记录在
-`docs/reviews/fsguard-std-overlap.md` §6，不改 std 仓库。
+对 std 的能力建议（读目录返 0、按 `strlen` 写、errno、mkdir/remove/rename、offset 读、以及
+「路径规范化/段边界/递归遍历不进 std」的反向结论）已整理成可直接投递的文本：
+`docs/reviews/fsguard-std-suggestions.md`。不改 std 仓库。

@@ -60,7 +60,7 @@
 - **覆盖**：R-01、R-03、R-15、R-16、R-17。
 - **退出判据概要**：
   - R-01 `pub trait` + `map trait` + `.h.ct` 回调；包内 `#define` 计数 0。
-  - R-03 四个方法名与 22 个 std 名字无交集；同名时限定调用。
+  - R-03 四个方法名与 22 个 std 名字无交集；**判据 3 依赖共享库机制落地后才转门禁，期间保持未实施**。
   - R-15 只接受 `/`；`a\b` 字面处理；无 Win32 分支。
   - R-16 `std::fs` 零改动；不暴露同名方法。
   - R-17 夹具运行时生成、入门禁；macOS `g7-asan` 绿、`g7-leak` 打 SKIP；Linux `g7-leak` 绿并把实测记录回填（`g7-lsan-record` 绿）。
@@ -74,8 +74,8 @@
 | `FS_ERR_NOT_DIR` | PH-01 | 映射 `ENOTDIR` 或删除成员，二选一 |
 | `ELOOP` | PH-02 | R-14 表加归类 + 环用例 |
 | LSan 记录未回填 | PH-04 | Linux 跑 `ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak`，把 host、命令与原始输出回填 `docs/reviews/fsguard-lsan-linux.md`；`g7-lsan-record` 判红直到记录存在 |
-| FSR-15（walk 根缺失） | PH-03 | 补「根不存在」判据 |
-| FSR-16（`normalize_to` 重叠） | PH-01 | 检测重叠并返回 -1 |
+| FSR-15（walk 根缺失） | PH-03 | 已收口：`g3-ph03 r07` 覆盖根不存在 → -1 + 冻结码、0 回调 |
+| FSR-16（`normalize_to` 重叠） | PH-01 | 已收口：D-008 + `g3-ph01 r05` 的重叠拒绝用例 |
 
 ## 4 总退出
 

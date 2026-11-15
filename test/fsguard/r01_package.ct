@@ -1,0 +1,81 @@
+/*
+ * R-01 包形态：消费者只 import 本包的 `.m.ct`（FsGuardOps），
+ * 在 `char *` 上调用四个方法，并让 walk 实际回调到消费者的具名函数。
+ *
+ * $ bash tools/check.sh g3-ph04 r01
+ *
+ * 本文件不得 import `fsguard::FsGuard`（那是 `.h.ct`）；门禁会核对 import 行。
+ */
+import fsguard::FsGuardOps;
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+static int total = 0;
+static int failed = 0;
+static int hits = 0;
+static int saw_file = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+static int on_entry(char *entry, int is_dir, void *ud)
+{
+    (void)is_dir;
+    (void)ud;
+    hits = hits + 1;
+    if (strstr(entry, "f.txt") != 0) saw_file = 1;
+    return 0;
+}
+
+int main(void)
+{
+    char norm[64];
+    char buf[16];
+    char path[128];
+    char *root = "/tmp/fsguard_ph04_r01";
+    FILE *f;
+    int n;
+
+    unlink("/tmp/fsguard_ph04_r01/f.txt");
+    rmdir("/tmp/fsguard_ph04_r01");
+    mkdir(root, 0755);
+    strcpy(path, "/tmp/fsguard_ph04_r01/f.txt");
+    f = fopen(path, "wb");
+    if (f != 0) {
+        fputs("abcdef", f);
+        fclose(f);
+    }
+
+    check("src/../a.c".normalize_to(norm, sizeof(norm)) == 0 && strcmp(norm, "a.c") == 0,
+          "R-01: consumer normalizes with only the mapped unit");
+    check("/workspace/src/a.c".is_under("/workspace/src") == 1,
+          "R-01: consumer checks segment boundary with only the mapped unit");
+    n = path.read_chunk(2, buf, 3);
+    check(n == 3 && memcmp(buf, "cde", 3) == 0,
+          "R-01: consumer reads a chunk with only the mapped unit");
+    hits = 0;
+    saw_file = 0;
+    n = root.walk(on_entry, 0, 4);
+    check(n == 0 && hits >= 1 && saw_file == 1,
+          "R-01: consumer callback is invoked by walk (named function, counted)");
+
+    unlink(path);
+    rmdir(root);
+
+    if (failed != 0) {
+        printf("%d of %d checks failed\n", failed, total);
+        return 1;
+    }
+    printf("all checks passed\n");
+    return 0;
+}

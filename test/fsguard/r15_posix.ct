@@ -1,0 +1,56 @@
+/*
+ * R-15 平台范围：MVP 只接受 `/`，`a\b` 按字面字符处理。
+ *
+ * $ bash tools/check.sh g3-ph04 r15
+ *
+ * 断言的是「反斜杠不参与分词」：既不转成 `/`，也不作为段边界，
+ * 也不会让 `.` / `..` 在反斜杠处折叠。Win32 分支的存在性由门禁 grep 核对。
+ */
+import fsguard::FsGuardOps;
+#include <stdio.h>
+#include <string.h>
+
+static int total = 0;
+static int failed = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+int main(void)
+{
+    char a[64];
+    char b[64];
+    char c[64];
+    char d[64];
+
+    check("a\\b".normalize_to(a, sizeof(a)) == 0 && strcmp(a, "a\\b") == 0,
+          "R-15: backslash stays a literal character, not converted to slash");
+    check("a\\.\\b".normalize_to(b, sizeof(b)) == 0 && strcmp(b, "a\\.\\b") == 0,
+          "R-15: dot is not collapsed inside a backslash segment");
+    check("/a\\b/c".normalize_to(c, sizeof(c)) == 0 && strcmp(c, "/a\\b/c") == 0,
+          "R-15: backslash segment survives normalization next to real slashes");
+    check("C:\\tmp\\x".normalize_to(d, sizeof(d)) == 0 && strcmp(d, "C:\\tmp\\x") == 0,
+          "R-15: drive-letter-like input is kept literal (no Win32 parsing)");
+
+    check("a\\b".is_under("a") == 0,
+          "R-15: backslash is not a segment boundary");
+    check("/a\\b".is_under("/a") == 0,
+          "R-15: /a\\b is not under /a (one segment)");
+    check("/a\\b/c".is_under("/a\\b") == 1,
+          "R-15: /a\\b/c is under /a\\b");
+
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}

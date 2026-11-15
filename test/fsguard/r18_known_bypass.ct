@@ -1,0 +1,116 @@
+/*
+ * FSR-02 / FSR-03 KNOWN BYPASS — 这不是安全保证。
+ *
+ * $ bash tools/check.sh g3-ph04 r18
+ *
+ * 本文件断言的是「这里确实能绕过去」，不是「绕过会被拒绝」。依据 D-012：
+ * check 是词法策略，不构成安全边界；这里把已知绕过固化成可执行记录。
+ *
+ * 失败时的含义：行为变了（例如 check 开始拦软链，或 read 不再跟随链接）。
+ * 先重开 D-012 重新裁定，再修改本用例；不要为了变绿而删断言。
+ *
+ * 硬链接在不支持的文件系统上会显式 SKIP（退出码 3）；SKIP 不算通过。
+ */
+import fsguard::FsGuard;
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/stat.h>
+
+static int total = 0;
+static int failed = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+        printf("  hint: behavior changed; reopen D-012 before rewriting this known_bypass test\n");
+    }
+}
+
+static void cleanup(void)
+{
+    unlink("/tmp/fsguard_ph04_root/link.txt");
+    unlink("/tmp/fsguard_ph04_root/dir");
+    rmdir("/tmp/fsguard_ph04_root/dir");
+    unlink("/tmp/fsguard_ph04_outside/secret.txt");
+    unlink("/tmp/fsguard_ph04_outside/hard.txt");
+    rmdir("/tmp/fsguard_ph04_outside");
+    rmdir("/tmp/fsguard_ph04_root");
+}
+
+int main(void)
+{
+    char buf[128];
+    char *root = "/tmp/fsguard_ph04_root";
+    char *outside = "/tmp/fsguard_ph04_outside";
+    char *dir = "/tmp/fsguard_ph04_root/dir";
+    char *swap = "/tmp/fsguard_ph04_root/dir/secret.txt";
+    char *hard = "/tmp/fsguard_ph04_outside/hard.txt";
+    char *linkpath = "/tmp/fsguard_ph04_root/link.txt";
+    FILE *f;
+    FsGuard *g;
+    int rc;
+    int n;
+
+    cleanup();
+    mkdir(root, 0755);
+    mkdir(outside, 0755);
+    mkdir(dir, 0755);
+    f = fopen("/tmp/fsguard_ph04_outside/secret.txt", "wb");
+    if (f != 0) {
+        fputs("OUTSIDE-TOCTOU\n", f);
+        fclose(f);
+    }
+    f = fopen(hard, "wb");
+    if (f != 0) {
+        fputs("OUTSIDE-HARDLINK\n", f);
+        fclose(f);
+    }
+
+    g = fsguard::fsguard_new(root);
+
+    /* FSR-02: 词法 check 通过后把目录换成根外软链。 */
+    check(g->check(swap) == FS_OK,
+          "known_bypass: lexical check passes for a path that will be swapped");
+    rmdir(dir);
+    if (symlink(outside, dir) != 0) {
+        check(0, "known_bypass: symlink fixture setup");
+    } else {
+        n = g->read_file(swap, buf, sizeof(buf));
+        check(n == 15 && strcmp(buf, "OUTSIDE-TOCTOU\n") == 0,
+              "known_bypass: read follows the swapped symlink and reads outside content (TOCTOU not mitigated)");
+        unlink(dir);
+    }
+
+    /* FSR-03: 根内硬链接指向根外 inode。 */
+    rc = link(hard, linkpath);
+    if (rc != 0) {
+        if (fsgo_errno() == EPERM || fsgo_errno() == EOPNOTSUPP || fsgo_errno() == EXDEV) {
+            printf("skip: hardlink unsupported on this filesystem (errno=%d); not a pass\n", fsgo_errno());
+            delete g;
+            cleanup();
+            return 3;
+        }
+        check(0, "known_bypass: hardlink fixture setup");
+    } else {
+        n = g->read_file(linkpath, buf, sizeof(buf));
+        check(n == 17 && strcmp(buf, "OUTSIDE-HARDLINK\n") == 0,
+              "known_bypass: hardlink in root reads the outside inode (not mitigated)");
+    }
+
+    delete g;
+    cleanup();
+
+    if (failed != 0) {
+        printf("%d of %d checks failed\n", failed, total);
+        return 1;
+    }
+    printf("all checks passed\n");
+    return 0;
+}

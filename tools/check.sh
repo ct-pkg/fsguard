@@ -80,9 +80,9 @@ g1_command() {
 g1_phase_card() {
   sel="${1:-all}"
   case "$sel" in
-    all) list="PH-01 PH-02 PH-03" ;;
-    PH-01|PH-02|PH-03) list="$sel" ;;
-    *) echo "usage: $0 g1-phase-card {PH-01|PH-02|PH-03|all}"; exit 2 ;;
+    all) list="PH-01 PH-02 PH-03 PH-04" ;;
+    PH-01|PH-02|PH-03|PH-04) list="$sel" ;;
+    *) echo "usage: $0 g1-phase-card {PH-01|PH-02|PH-03|PH-04|all}"; exit 2 ;;
   esac
   for ph in $list; do
     f="docs/phases/$ph/card.md"
@@ -249,6 +249,86 @@ g3_ph03() {
     echo "ok $name: $(grep -c '^ok ' "$TMP/$name.out") checks"
   done
   pass "g3-ph03: $sel green"
+}
+
+# FSR-02/03 的已知绕过负例与 FSR-04 手工清单。断言「绕过成立」，不是防护测试。
+g3_ph04() {
+  CT="${CT:-$HOME/.local/bin/ct}"
+  [ -x "$CT" ] || fail "G3: ct not found at $CT (set CT=/path/to/ct)"
+  sel="${1:-all}"
+  case "$sel" in
+    r01) tests="r01_package" ;;
+    r15) tests="r15_posix" ;;
+    r18) tests="r18_known_bypass" ;;
+    all) tests="r01_package r15_posix r18_known_bypass" ;;
+    *) echo "usage: $0 g3-ph04 {r01|r15|r18|all}"; exit 2 ;;
+  esac
+  if [ "$sel" = all ]; then
+    # R-01：包形态（pub trait 不带宿主、.h.ct/.m.ct 无 #define）。
+    n="$(grep -rE 'pub trait [A-Za-z_][A-Za-z0-9_]* for char \*' src/fsguard | wc -l | tr -d ' ')"
+    [ "$n" -eq 0 ] || fail "G3:R-01 found 'pub trait ... for char *' in src/fsguard"
+    n="$(grep -cE '^[[:space:]]*#define' src/fsguard/*.h.ct src/fsguard/*.m.ct | awk -F: '{s+=$2} END {print s+0}')"
+    [ "$n" -eq 0 ] || fail "G3:R-01 found $n #define in .h.ct/.m.ct"
+    f=test/fsguard/r01_package.ct
+    grep -q '^import fsguard::FsGuardOps;' "$f" || fail "G3:R-01 consumer must import fsguard::FsGuardOps"
+    grep -q '^import fsguard::FsGuard;' "$f" && fail "G3:R-01 consumer must not import fsguard::FsGuard"
+    # R-15：MVP 无 Win32 分支。
+    n="$(grep -ri 'win32' src/fsguard | wc -l | tr -d ' ')"
+    [ "$n" -eq 0 ] || fail "G3:R-15 found $n Win32 references in src/fsguard"
+    # R-16：README 能力对照表与实现一一对应；trait 只占四个名字。
+    f=README.md
+    grep -q '^## 能力对照表' "$f" || fail "G3:R-16 README missing '## 能力对照表'"
+    for t in normalize_to is_under read_chunk walk check read_file write_file fsguard_new exists readFile writeFile list 不提供; do
+      grep -q "$t" "$f" || fail "G3:R-16 capability table missing: $t"
+    done
+    names="$(awk '/^pub trait FsGuardOps \{/{f=1; next} f && /^\}/{f=0} f' src/fsguard/FsGuardOps.m.ct \
+      | grep -oE '[A-Za-z_][A-Za-z0-9_]*\(' | tr -d '(' | sort | tr '\n' ' ')"
+    [ "z$names" = "zis_under normalize_to read_chunk walk " ] \
+      || fail "G3:R-16 trait method set changed (got: $names)"
+    # R-03：依赖共享库机制，期间未实施；只核对标注，不伪造歧义用例。
+    for f in docs/phases/PH-04/card.md docs/acceptance/fsguard-status.md; do
+      grep -q '依赖共享库机制落地后才转门禁，期间保持未实施' "$f" \
+        || fail "G3:R-03 missing the deferred-by-shared-library marker in $f"
+    done
+    # FSR-04：手工清单仍是唯一出口。
+    f=docs/acceptance/fsguard-manual-checks.md
+    [ -f "$f" ] || fail "G3:FSR-04 missing $f"
+    for t in 'FSR-04' 'weaker variant' 'mount --bind' 'hdiutil' 'userns'; do
+      grep -q "$t" "$f" || fail "G3:FSR-04 manual checklist missing: $t"
+    done
+  fi
+  for name in $tests; do
+    src="test/fsguard/$name.ct"
+    [ -f "$src" ] || fail "G3: missing $src"
+    "$CT" build "$src" -I src --cflags "-Isrc" -o "$TMP/$name" >"$TMP/$name.build" 2>&1
+    if [ $? -ne 0 ]; then
+      cat "$TMP/$name.build"
+      fail "G3: build $name failed"
+    fi
+    "$TMP/$name" >"$TMP/$name.out" 2>&1
+    rc=$?
+    if [ "$name" = r18_known_bypass ] && [ "$rc" -eq 3 ] && grep -q '^skip: hardlink' "$TMP/$name.out"; then
+      cat "$TMP/$name.out"
+      echo "SKIP: r18 hardlink unsupported on this filesystem; not a pass"
+      exit 3
+    fi
+    if [ "$rc" -ne 0 ]; then
+      cat "$TMP/$name.out"
+      fail "G3: $name rc=$rc"
+    fi
+    if grep -q '^not ok' "$TMP/$name.out"; then
+      cat "$TMP/$name.out"
+      fail "G3: $name reported not ok (behavior changed; reopen D-012 for r18)"
+    fi
+    if grep -q '^skip' "$TMP/$name.out"; then
+      cat "$TMP/$name.out"
+      fail "G3: $name skipped a fixture (environment gap, not a pass)"
+    fi
+    grep -q 'all checks passed' "$TMP/$name.out" \
+      || { cat "$TMP/$name.out"; fail "G3: $name missing summary line"; }
+    echo "ok $name: $(grep -c '^ok ' "$TMP/$name.out") checks"
+  done
+  pass "g3-ph04: $sel green"
 }
 
 g4_static() {
@@ -456,6 +536,7 @@ case "$CASE" in
   g3-ph01) g3_ph01 "$@"; exit 0 ;;
   g3-ph02) g3_ph02 "$@"; exit 0 ;;
   g3-ph03) g3_ph03 "$@"; exit 0 ;;
+  g3-ph04) g3_ph04 "$@"; exit 0 ;;
   g4-static) g4_static; exit 0 ;;
   g5-anchor) g5_anchor; exit 0 ;;
   g6-contract) g6_contract; exit 0 ;;
@@ -469,6 +550,7 @@ case "$CASE" in
     g3_ph01
     g3_ph02
     g3_ph03
+    g3_ph04
     g4_static
     g5_anchor
     g6_contract
@@ -483,7 +565,7 @@ case "$CASE" in
     exit 0
     ;;
   *)
-    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g3-ph03 [r07|r10|r13]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|g7-lsan-record|all}"
+    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|PH-03|PH-04|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g3-ph03 [r07|r10|r13]|g3-ph04 [r01|r15|r18|all]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|g7-lsan-record|all}"
     exit 2
     ;;
 esac

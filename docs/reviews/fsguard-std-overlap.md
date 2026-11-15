@@ -135,8 +135,10 @@ fsg  write-dir=5
 | S-3 | 若要支持上层错误分类，`std::io` 可加 errno 访问器（C shim 里 `errno` 是宏，CT 侧需要访问器） | fsguard 已用 `fsgo_errno()` 绕开 | 属 std 的 API 设计选择，不建议为 fsguard 单独加 |
 | S-4 | 路径规范化 / 段边界 / 递归遍历 / offset 读**不建议**进 std | std 现有定位是「四个整文件/单层原语」 | 这些语义带策略与错误码，属 fsguard；std 保持薄层更稳 |
 | S-5 | 补 `mkdir` / `remove` / `rename` | `std/fs/README.md` §1 明写不提供 | 目前只能直接调 C API；若 std 增补，fsguard 也不应包装策略 |
-| S-6 | `writeFile` 支持长度参数或指向 `File.write(buf, n)` | 含 `\0` 的数据被截断（同 S-2） | 二进制写出路只有 `std::io::File` |
 | S-7 | `IoFile` 增加 `seek` / offset 读 | `std::io` 只有顺序 `read` | 分块读只能整读或自己用 C；fsguard 的 `read_chunk` 因此自留 |
+
+原 S-6（`writeFile` 长度参数）与 S-2 是同一问题，已并入 S-2，不再单列。
+可直接投递的建议文本见 `docs/reviews/fsguard-std-suggestions.md`。
 
 ## 7 安装与消费的边界问题（与 std 无关，但由本次安装暴露）
 

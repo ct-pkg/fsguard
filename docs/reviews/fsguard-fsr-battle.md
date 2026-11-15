@@ -196,3 +196,9 @@ mount: /private/tmp/fsr_battle/root/mnt failed with 72
 $ /tmp/fsr_battle/mountread
 check_mount=0 read_mount=14 content=OUTSIDE-MOUNT
 ```
+
+## 9 落地
+
+- FSR-02/03：`test/fsguard/r18_known_bypass.ct`，由 `bash tools/check.sh g3-ph04 r18` 执行；失败提示要求重开 D-012。
+- FSR-04：`docs/acceptance/fsguard-manual-checks.md`（`hdiutil` 弱变体、`mount_nullfs`、`mount --bind`、`userns`，不进 CI）。
+- 相位：`docs/phases/PH-04/card.md`；`g3-ph04 all` 校验手工清单存在。

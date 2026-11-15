@@ -1,7 +1,7 @@
 # PH-01 卡：路径词法与错误枚举
 
 id: PH-01
-status: in-progress
+status: closed
 opened: 2026-11-15
 spec-version: 1.10.0
 version-minor: 1

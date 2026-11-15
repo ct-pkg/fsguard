@@ -1,7 +1,7 @@
 # PH-03 卡：遍历与策略
 
 id: PH-03
-status: in-progress
+status: closed
 opened: 2026-11-15
 spec-version: 1.10.0
 version-minor: 3

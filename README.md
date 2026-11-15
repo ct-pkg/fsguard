@@ -2,7 +2,7 @@
 
 `std::fs` 之上的词法路径策略层：`char *` 上的无状态原语 + `FsGuard` 有状态检查。
 
-- 状态：PH-01/PH-02/PH-03 已收口；下一相 PH-04（包形态/平台/门禁）。
+- 状态：PH-01/PH-02/PH-03 已收口；PH-04 进行中（R-01/R-15/R-16 已落，R-03 依赖共享库机制、期间未实施）。
 - 边界：**这是词法策略层，不是安全边界；不解析符号链接、不防 TOCTOU。**
 - 门禁：`bash tools/check.sh all`。
 
@@ -57,6 +57,32 @@ fsguard 不依赖 std（`ct.pkg` 零 `dep`），两者可在同一编译单元�
 - `std::fs.list` 单层、用 `\n` 拼接、不区分类型、不递归；`walk` 递归、带 `is_dir`、可剪枝。
 - std 不提供 `normalize_to` / `is_under` / 段边界；这些由 fsguard 提供。
 - 两边都是 POSIX 取向：`std::fs.list` 在 Windows 不可用，fsguard 的 `walk` 同样依赖 `opendir`。
+
+## 能力对照表
+
+本表与实现一一对应（R-16）：`fsguard` 列出的符号都真实存在；标「不提供」的能力只由 `std` 承担，
+fsguard 不在 `char *` 上另开同名方法。
+
+| 能力 | fsguard 符号 | std 符号 | 归属 |
+| --- | --- | --- | --- |
+| 路径规范化 | `char *::normalize_to` | 无（`std::str` 只有字节切分） | fsguard |
+| 段边界判定 | `char *::is_under` | 无（`startsWith` 是字符串前缀） | fsguard |
+| 按 offset 分块读 | `char *::read_chunk` / `FsGuard::read_chunk` | 无（`IoFile` 无 `seek`） | fsguard |
+| 递归遍历 | `char *::walk` / `FsGuard::walk` | `list`（单层、`\n` 拼接、无类型） | fsguard |
+| 策略准入判定 | `FsGuard::check` | 无 | fsguard |
+| 带错误码的整文件读 | `FsGuard::read_file` | `readFile`（失败统一 `-1`，目录返 0） | fsguard |
+| 按长度写（二进制安全） | `FsGuard::write_file` | `writeFile`（按 `strlen`） | fsguard |
+| 策略配置 | `FsGuard::allow_prefix` / `deny_pattern` / `max_depth` | 无 | fsguard |
+| 错误对象 | `FsGuard::last_error` / `has_error` / `clear_error` | 无 | fsguard |
+| 句柄构造 | `fsguard_new` | 无 | fsguard |
+| 存在性判断 | 不提供 | `exists` | std |
+| 单层列目录 | 不提供 | `list` | std |
+| 整文件便捷读写 | 不提供 | `readFile` / `writeFile` | std |
+| 顺序流式 I/O | 不提供 | `open` / `read` / `write` / `close` | std |
+| 字符串与容器工具 | 不提供 | `std::str` / `Vec` / `Map` / `Arena` | std |
+
+`char *` 上本包只占四个方法名（`normalize_to` / `is_under` / `read_chunk` / `walk`），
+与 std 的 22 个名字交集为空（D-011）；同名时用 `FsGuardOps::method(...)` 限定调用。
 
 ## 文档
 

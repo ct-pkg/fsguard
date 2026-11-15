@@ -1,7 +1,7 @@
 # PH-02 卡：读写、错误面与生命周期
 
 id: PH-02
-status: in-progress
+status: closed
 opened: 2026-11-15
 spec-version: 1.10.0
 version-minor: 2
