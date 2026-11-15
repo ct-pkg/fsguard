@@ -22,13 +22,23 @@ g0_decisions() {
   [ -f docs/decisions/D-003.md ] || fail "G0: missing docs/decisions/D-003.md"
   [ -f docs/decisions/D-004.md ] || fail "G0: missing docs/decisions/D-004.md"
   [ -f docs/decisions/D-005.md ] || fail "G0: missing docs/decisions/D-005.md"
-  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md docs/decisions/D-006.md docs/decisions/D-007.md docs/decisions/D-008.md docs/decisions/D-009.md docs/decisions/D-010.md; do
+  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md docs/decisions/D-006.md docs/decisions/D-007.md docs/decisions/D-008.md docs/decisions/D-009.md docs/decisions/D-010.md docs/decisions/D-011.md; do
     [ -f "$f" ] || fail "G0: missing $f"
     for field in id date anchor status trigger verdict judge seats scope criteria rationale invalidation affected; do
       grep -q "^${field}:" "$f" || fail "G0: $f missing field: $field"
     done
   done
-  pass "g0-decisions: V-001 + D-001…D-010 have all 13 fields"
+  # D-011：fsguard 不把 std 变成硬依赖，且仍是单包单命名空间。
+  if grep -v '^#' ct.pkg | grep -q '^dep = std'; then
+    fail "G0: D-011 forbids a hard std dependency in ct.pkg"
+  fi
+  [ "z$(find src -mindepth 1 -maxdepth 1 -type d | sort | tr '\n' ' ')" = "zsrc/fsguard " ] \
+    || fail "G0: D-011 keeps one namespace dir under src (got: $(find src -mindepth 1 -maxdepth 1 -type d | tr '\n' ' '))"
+  grep -q '^## 3 符号级对照表' docs/reviews/fsguard-std-overlap.md \
+    || fail "G0: D-011 evidence missing symbol table section"
+  grep -q '^## 5 语义冲突' docs/reviews/fsguard-std-overlap.md \
+    || fail "G0: D-011 evidence missing semantics section"
+  pass "g0-decisions: V-001 + D-001…D-011 have all 13 fields; no std dep; single namespace"
 }
 
 g1_command() {

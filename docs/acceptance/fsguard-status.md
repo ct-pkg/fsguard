@@ -104,3 +104,10 @@
 - Darwin：`bash tools/check.sh g7-leak` 只能 `DEFERRED rc=3`；PH-01/PH-02/PH-03 的「无内存泄漏」记 **待 Linux 补跑**，不得记通过。
 - Linux 补跑命令：`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak`。
 - 本机可跑：`bash tools/check.sh g7-asan`（干净夹具 rc=0，UAF 被捕获；已加看门狗，`asan_uaf` 不退出也会被收口）。
+
+## 8 与 `ct-pkg/std` 的关系（D-011）
+
+- 已按 `ct get` / `ct install` 核对 `std` 0.2.0（tag `v0.2.0`，`b04b7d6`）：`std::fs` 只有 `exists` / `readFile` / `writeFile` / `list`，`std::io` 只有 `open` / `read` / `write` / `close`，`std::str` 只有字节级方法；**没有**路径规范化、段边界、递归遍历、offset 读、errno。
+- 符号级对照见 `docs/reviews/fsguard-std-overlap.md`：fsguard 的 12 个公开符号与 std 零重复；`read_file` / `write_file` 同形但不可替代（std 目录读返回 0、失败统一 `-1`、按 `strlen` 写）。
+- 结论（D-011）：不新增 `std` 依赖、不拆 path 包；std 缺失的语义继续由 fsguard 提供；对 std 的四条建议只记录、不改 std 仓库。
+- 由安装暴露的包形态缺口：`ct install` 只打印 `-I vendor/<包名>`，而 fsguard 的单元在 `src/fsguard/`，消费者实测报 `cannot resolve import 'fsguard/FsGuard'`；归 **PH-04**。

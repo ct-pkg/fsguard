@@ -47,4 +47,5 @@ delete g;
 - [需求分析](docs/requirements.md)
 - [落地路线](docs/planning/fsguard-roadmap.md)
 - [决策记录](docs/decisions/README.md)
+- [与 std 的符号级对照](docs/reviews/fsguard-std-overlap.md)
 - [需求状态](docs/acceptance/fsguard-status.md)
