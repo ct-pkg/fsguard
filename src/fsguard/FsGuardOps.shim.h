@@ -20,9 +20,16 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 /* check 的栈上规范化缓冲区上限；超长路径由调用方映射成 FS_ERR_IO。 */
 #define FSGO_PATH_MAX 4096
+
+/* walker 递归深度上限；超过由调用方拒绝（卡 K-1），不改需求口径。 */
+#define FSGO_MAX_DEPTH 64
 
 /* errno 在 C 里是宏，CT 侧看不到；经这个 shim 函数读。 */
 static inline int fsgo_errno(void)
@@ -194,6 +201,94 @@ static inline int fsgo_match(const char *path, const char *pattern)
 {
     if (path == 0 || pattern == 0) return 0;
     return fnmatch(pattern, path, FNM_PATHNAME) == 0;
+}
+
+/*
+ * 唯一一份目录递归实现（R-07 / R-13 共用）。
+ *
+ * cb 返回非 0 → 立即中断并把该值原样返回。
+ * filter 可选：返回 0 正常访问并递归；2 静默剪枝（不回调、不递归）；
+ * -1 中止（错误码由调用方放在 ctx 里读）。
+ * 返回 0 = 完成；>0 = 回调返回值；-1 = 错误（*syserr 为 errno，-1 表示非法参数）。
+ */
+typedef int (*fsgo_walk_cb)(char *entry, int is_dir, void *ud);
+typedef int (*fsgo_walk_filter)(const char *path, int is_dir, void *ctx);
+
+static inline int fsgo_walk_node(char *path, char *childbuf, int depth, int max_depth,
+                                 fsgo_walk_cb cb, void *ud,
+                                 fsgo_walk_filter filter, void *ctx, int *syserr)
+{
+    struct stat st;
+    DIR *d;
+    struct dirent *de;
+    int is_dir;
+    int rc;
+    int f;
+
+    if (lstat(path, &st) != 0) {
+        if (syserr != 0) *syserr = errno;
+        return -1;
+    }
+    is_dir = S_ISDIR(st.st_mode) ? 1 : 0;
+    f = 0;
+    if (filter != 0) f = filter(path, is_dir, ctx);
+    if (f < 0) return -1;
+    if (f == 2) return 0;
+
+    rc = cb(path, is_dir, ud);
+    if (rc != 0) return rc;
+    if (!is_dir || depth >= max_depth) return 0;
+
+    d = opendir(path);
+    if (d == 0) {
+        if (syserr != 0) *syserr = errno;
+        return -1;
+    }
+    while ((de = readdir(d)) != 0) {
+        int need;
+        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+        need = (int)strlen(path) + 1 + (int)strlen(de->d_name) + 1;
+        if (need > FSGO_PATH_MAX) {
+            closedir(d);
+            if (syserr != 0) *syserr = ENAMETOOLONG;
+            return -1;
+        }
+        snprintf(childbuf, FSGO_PATH_MAX, "%s/%s", path, de->d_name);
+        rc = fsgo_walk_node(childbuf, childbuf + FSGO_PATH_MAX, depth + 1, max_depth,
+                            cb, ud, filter, ctx, syserr);
+        if (rc != 0) {
+            closedir(d);
+            return rc;
+        }
+    }
+    closedir(d);
+    return 0;
+}
+
+static inline int fsgo_walk(const char *root, fsgo_walk_cb cb, void *ud, int max_depth,
+                            fsgo_walk_filter filter, void *ctx, int *syserr)
+{
+    char *bufs;
+    size_t total;
+    int rc;
+
+    if (syserr != 0) *syserr = -1;
+    if (root == 0 || cb == 0 || max_depth < 0) return -1;
+    if (max_depth > FSGO_MAX_DEPTH) return -1;
+    if (strlen(root) + 1 > FSGO_PATH_MAX) {
+        if (syserr != 0) *syserr = ENAMETOOLONG;
+        return -1;
+    }
+    total = (size_t)FSGO_PATH_MAX * (size_t)(max_depth + 2);
+    bufs = malloc(total);
+    if (bufs == 0) {
+        if (syserr != 0) *syserr = ENOMEM;
+        return -1;
+    }
+    strcpy(bufs, root);
+    rc = fsgo_walk_node(bufs, bufs + FSGO_PATH_MAX, 0, max_depth, cb, ud, filter, ctx, syserr);
+    free(bufs);
+    return rc;
 }
 
 #endif

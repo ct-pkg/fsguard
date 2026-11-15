@@ -1,3 +1,5 @@
+import fsguard::FsGuard;
+
 namespace fsguard;
 
 #include "fsguard/FsGuardOps.shim.h"
@@ -13,10 +15,12 @@ pub trait FsGuardOps {
     int normalize_to(char *out, int cap);
     int is_under(char *prefix);
     int read_chunk(long long offset, char *buf, int len);
+    int walk(FsWalkCb cb, void *ud, int max_depth);
 }
 
 map trait FsGuardOps for type char * {
     normalize_to(s, out, cap) -> fsgo_normalize(s, out, cap);
     is_under(s, prefix)       -> fsgo_is_under(s, prefix);
     read_chunk(s, off, buf, len) -> fsgo_read_chunk(s, off, buf, len, 0);
+    walk(s, cb, ud, depth)    -> fsgo_walk(s, cb, ud, depth, 0, 0, 0);
 }

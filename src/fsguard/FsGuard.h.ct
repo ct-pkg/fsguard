@@ -26,6 +26,9 @@ pub enum FsErrCode {
     FS_ERR_OOM = 9
 }
 
+/* 遍历回调（R-07）：entry 是借用，生命周期到回调返回为止。 */
+pub typedef int (*FsWalkCb)(char *entry, int is_dir, void *ud);
+
 /* last_error() 的返回体；由 FsGuard 独占，调用方不得 free。 */
 pub struct FsError {
     int code;
@@ -79,6 +82,17 @@ static int fsg_error_set(FsGuard *g, int code, char *path, char *message)
     g->_has_error = 1;
     return code;
 }
+
+/* FsGuard::walk 的桥：把每次遍历回调先过一遍 check。 */
+struct FsWalkBridge {
+    FsGuard *_g;
+    FsWalkCb _cb;
+    void *_ud;
+    int _code;
+};
+
+static int fsg_walk_filter(const char *path, int is_dir, void *ctx);
+static int fsg_walk_bridge(char *entry, int is_dir, void *ud);
 
 /*
  * R-14：全包唯一的 errno → FS_ERR_* 映射（D-009）。
@@ -147,6 +161,11 @@ impl FsGuard {
         char *copy;
 
         if (prefix == 0) return 0;
+        if (prefix[0] == 0) {
+            free(self->_allow_prefix);
+            self->_allow_prefix = 0;
+            return self;
+        }
         if (fsgo_normalize(prefix, norm, FSGO_PATH_MAX) != 0) return 0;
         copy = fsg_dup(norm);
         if (copy == 0) return 0;
@@ -160,6 +179,11 @@ impl FsGuard {
         char *copy;
 
         if (glob == 0) return 0;
+        if (glob[0] == 0) {
+            free(self->_deny_pattern);
+            self->_deny_pattern = 0;
+            return self;
+        }
         copy = fsg_dup(glob);
         if (copy == 0) return 0;
         free(self->_deny_pattern);
@@ -298,6 +322,60 @@ impl FsGuard {
                                  norm, "read chunk failed");
         return n;
     }
+
+    /*
+     * R-13：先 check root，再对每个条目 check；越界/命中 deny 的条目
+     * 静默剪枝（目录连同整棵子树），不可读目录 fail-closed。
+     * 与 char *::walk 共用 fsgo_walk 这一份递归实现。
+     */
+    pub int walk(char *root, FsWalkCb cb, void *ud)
+    {
+        char norm[FSGO_PATH_MAX];
+        struct FsWalkBridge b;
+        int syserr = -1;
+        int rc;
+
+        fsg_error_clear(self);
+        if (root == 0 || cb == 0)
+            return fsg_error_set(self, FS_ERR_IO, "", "invalid argument");
+        if (fsgo_normalize(root, norm, FSGO_PATH_MAX) != 0)
+            return fsg_error_set(self, FS_ERR_IO, "", "path too long or overlapping buffer");
+        rc = self->check(norm);
+        if (rc != FS_OK) return rc;
+
+        b._g = self;
+        b._cb = cb;
+        b._ud = ud;
+        b._code = FS_OK;
+        rc = fsgo_walk(norm, fsg_walk_bridge, &b, self->_max_depth,
+                       fsg_walk_filter, &b, &syserr);
+        if (rc < 0)
+            return fsg_error_set(self,
+                                 b._code != FS_OK ? b._code
+                                 : (syserr < 0 ? FS_ERR_IO : fsguard_errno_to_code(syserr)),
+                                 norm, "walk failed");
+        return rc;
+    }
+}
+
+static int fsg_walk_filter(const char *path, int is_dir, void *ctx)
+{
+    struct FsWalkBridge *b;
+    int rc;
+
+    (void)is_dir;
+    b = ctx;
+    rc = b->_g->check((char *)path);
+    if (rc == FS_OK) return 0;
+    if (rc == FS_ERR_OUT_OF_BOUNDS || rc == FS_ERR_DENIED_PATTERN) return 2;
+    b->_code = rc;
+    return -1;
+}
+
+static int fsg_walk_bridge(char *entry, int is_dir, void *ud)
+{
+    struct FsWalkBridge *b = ud;
+    return b->_cb(entry, is_dir, b->_ud);
 }
 
 impl Drop for FsGuard {
