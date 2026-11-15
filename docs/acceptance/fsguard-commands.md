@@ -26,7 +26,7 @@ $ ct build examples/fsguard/r03_name_coexist.ct
 ## R-04 分块读
 
 ```console
-$ ct run test/fsguard/r04_read_chunk.ct
+$ bash tools/check.sh g3-ph02 r04
 # rc=0
 ```
 
@@ -54,7 +54,7 @@ $ ct run test/fsguard/r07_walk.ct
 ## R-08 生命周期与所有权
 
 ```console
-$ ct run test/fsguard/r08_lifecycle.ct
+$ bash tools/check.sh g3-ph02 r08
 # rc=0
 ```
 
@@ -75,7 +75,7 @@ $ ct run test/fsguard/r10_policy.ct
 ## R-11 FsError 契约
 
 ```console
-$ ct run test/fsguard/r11_error_contract.ct
+$ bash tools/check.sh g3-ph02 r11
 # rc=0
 ```
 

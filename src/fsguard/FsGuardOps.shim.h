@@ -17,9 +17,58 @@
 #include <stddef.h>
 #include <string.h>
 #include <fnmatch.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 /* check 的栈上规范化缓冲区上限；超长路径由调用方映射成 FS_ERR_IO。 */
 #define FSGO_PATH_MAX 4096
+
+/* errno 在 C 里是宏，CT 侧看不到；经这个 shim 函数读。 */
+static inline int fsgo_errno(void)
+{
+    return errno;
+}
+
+/*
+ * char *::read_chunk 的实现（R-04）：按 offset 读最多 len 字节。
+ * 返回实际字节数；0 = EOF；-1 = 错误，此时 *syserr 为 errno（参数非法时为 -1）。
+ * 不补 NUL，二进制安全；每次重新打开文件（MVP 不做句柄缓存）。
+ */
+static inline int fsgo_read_chunk(const char *path, long long offset, char *buf,
+                                  int len, int *syserr)
+{
+    int fd;
+    int got;
+
+    if (syserr != 0) *syserr = -1;
+    if (path == 0 || buf == 0 || offset < 0 || len < 0) return -1;
+    if (len == 0) return 0;
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        if (syserr != 0) *syserr = errno;
+        return -1;
+    }
+    if (lseek(fd, (off_t)offset, SEEK_SET) < 0) {
+        if (syserr != 0) *syserr = errno;
+        close(fd);
+        return -1;
+    }
+    got = 0;
+    while (got < len) {
+        ssize_t n = read(fd, buf + got, (size_t)(len - got));
+        if (n < 0) {
+            if (syserr != 0) *syserr = errno;
+            close(fd);
+            return -1;
+        }
+        if (n == 0) break;
+        got += (int)n;
+    }
+    close(fd);
+    return got;
+}
 
 /* out 与 path 是否有字节重叠：重叠时规范化会边读边写，必须拒绝。 */
 static inline int fsgo_overlap(const char *path, const char *out, int cap)

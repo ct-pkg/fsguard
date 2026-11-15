@@ -2,6 +2,10 @@ namespace fsguard;
 
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 #include "fsguard/FsGuardOps.shim.h"
 
@@ -76,6 +80,28 @@ static int fsg_error_set(FsGuard *g, int code, char *path, char *message)
     return code;
 }
 
+/*
+ * R-14：全包唯一的 errno → FS_ERR_* 映射（D-009）。
+ * ENOENT→NOT_FOUND；ENOTDIR→NOT_DIR；EACCES/EPERM→PERMISSION；
+ * EISDIR→IS_DIR；ELOOP / ENAMETOOLONG / 其余→IO。
+ */
+static int fsguard_errno_to_code(int e)
+{
+    switch (e) {
+    case ENOENT:
+        return FS_ERR_NOT_FOUND;
+    case ENOTDIR:
+        return FS_ERR_NOT_DIR;
+    case EACCES:
+    case EPERM:
+        return FS_ERR_PERMISSION;
+    case EISDIR:
+        return FS_ERR_IS_DIR;
+    default:
+        return FS_ERR_IO;
+    }
+}
+
 impl FsGuard {
     /*
      * 判定顺序冻结（R-09）：① 规范化 → ② root 段边界 → ③ allow 前缀
@@ -139,6 +165,138 @@ impl FsGuard {
         free(self->_deny_pattern);
         self->_deny_pattern = copy;
         return self;
+    }
+
+    /* R-10 的深度配置；非法参数返回 NULL 且不动原对象（D-001）。 */
+    pub FsGuard *max_depth(int depth)
+    {
+        if (depth < 0) return 0;
+        self->_max_depth = depth;
+        return self;
+    }
+
+    /*
+     * R-12 / Q-2 = A（D-006）：先 check 后 I/O；失败不回滚、不删除，
+     * 失败后目标文件内容未定义。成功返回实际字节数（不含 NUL）。
+     */
+    pub int read_file(char *path, char *buf, int cap)
+    {
+        char norm[FSGO_PATH_MAX];
+        struct stat st;
+        char *tmp;
+        int fd;
+        int got;
+        int want;
+        int code;
+
+        fsg_error_clear(self);
+        if (path == 0 || buf == 0 || cap <= 0)
+            return fsg_error_set(self, FS_ERR_IO, "", "invalid argument");
+        if (fsgo_normalize(path, norm, FSGO_PATH_MAX) != 0)
+            return fsg_error_set(self, FS_ERR_IO, "", "path too long or overlapping buffer");
+        code = self->check(norm);
+        if (code != FS_OK) return code;
+
+        fd = open(norm, O_RDONLY);
+        if (fd < 0)
+            return fsg_error_set(self, fsguard_errno_to_code(fsgo_errno()), norm, "open failed");
+        if (fstat(fd, &st) != 0) {
+            code = fsguard_errno_to_code(fsgo_errno());
+            close(fd);
+            return fsg_error_set(self, code, norm, "stat failed");
+        }
+        if (S_ISDIR(st.st_mode)) {
+            close(fd);
+            return fsg_error_set(self, FS_ERR_IS_DIR, norm, "is a directory");
+        }
+        want = (int)st.st_size;
+        if (want + 1 > cap) {
+            close(fd);
+            return fsg_error_set(self, FS_ERR_BUFFER_TOO_SMALL, norm, "buffer too small");
+        }
+        tmp = malloc((size_t)(want > 0 ? want : 1));
+        if (tmp == 0) {
+            close(fd);
+            return fsg_error_set(self, FS_ERR_OOM, norm, "out of memory");
+        }
+        got = 0;
+        while (got < want) {
+            ssize_t n = read(fd, tmp + got, (size_t)(want - got));
+            if (n < 0) {
+                code = fsguard_errno_to_code(fsgo_errno());
+                free(tmp);
+                close(fd);
+                return fsg_error_set(self, code, norm, "read failed");
+            }
+            if (n == 0) break;
+            got += (int)n;
+        }
+        close(fd);
+        memcpy(buf, tmp, (size_t)got);
+        buf[got] = 0;
+        free(tmp);
+        return got;
+    }
+
+    /* 成功返回 len；失败只保证错误码，目标内容未定义（D-006）。 */
+    pub int write_file(char *path, char *data, int len)
+    {
+        char norm[FSGO_PATH_MAX];
+        struct stat st;
+        int fd;
+        int put;
+        int code;
+
+        fsg_error_clear(self);
+        if (path == 0 || len < 0 || (data == 0 && len > 0))
+            return fsg_error_set(self, FS_ERR_IO, "", "invalid argument");
+        if (fsgo_normalize(path, norm, FSGO_PATH_MAX) != 0)
+            return fsg_error_set(self, FS_ERR_IO, "", "path too long or overlapping buffer");
+        code = self->check(norm);
+        if (code != FS_OK) return code;
+
+        if (stat(norm, &st) == 0 && S_ISDIR(st.st_mode))
+            return fsg_error_set(self, FS_ERR_IS_DIR, norm, "is a directory");
+        fd = open(norm, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        if (fd < 0)
+            return fsg_error_set(self, fsguard_errno_to_code(fsgo_errno()), norm, "open failed");
+        put = 0;
+        while (put < len) {
+            ssize_t n = write(fd, data + put, (size_t)(len - put));
+            if (n <= 0) {
+                code = n < 0 ? fsguard_errno_to_code(fsgo_errno()) : FS_ERR_IO;
+                close(fd);
+                return fsg_error_set(self, code, norm, "write failed");
+            }
+            put += (int)n;
+        }
+        if (close(fd) != 0)
+            return fsg_error_set(self, fsguard_errno_to_code(fsgo_errno()), norm, "close failed");
+        return len;
+    }
+
+    /* FsGuard 版 read_chunk：先 check，失败时把 errno 写进 last_error。 */
+    pub int read_chunk(char *path, long long offset, char *buf, int len)
+    {
+        char norm[FSGO_PATH_MAX];
+        int syserr = -1;
+        int code;
+        int n;
+
+        fsg_error_clear(self);
+        if (path == 0 || (buf == 0 && len > 0) || offset < 0 || len < 0)
+            return fsg_error_set(self, FS_ERR_IO, "", "invalid argument");
+        if (fsgo_normalize(path, norm, FSGO_PATH_MAX) != 0)
+            return fsg_error_set(self, FS_ERR_IO, "", "path too long or overlapping buffer");
+        code = self->check(norm);
+        if (code != FS_OK) return code;
+        if (len == 0) return 0;
+
+        n = fsgo_read_chunk(norm, offset, buf, len, &syserr);
+        if (n < 0)
+            return fsg_error_set(self, syserr < 0 ? FS_ERR_IO : fsguard_errno_to_code(syserr),
+                                 norm, "read chunk failed");
+        return n;
     }
 }
 
