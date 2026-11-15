@@ -82,7 +82,7 @@ $ ct run test/fsguard/r11_error_contract.ct
 ## R-12 读写包装
 
 ```console
-$ ct run test/fsguard/r12_io.ct
+$ bash tools/check.sh g3-ph02 r12
 # rc=0
 ```
 
@@ -96,7 +96,7 @@ $ ct run test/fsguard/r13_guard_walk.ct
 ## R-14 errno 映射
 
 ```console
-$ ct run test/fsguard/r14_errno_map.ct
+$ bash tools/check.sh g3-ph02 r14
 # rc=0
 ```
 
