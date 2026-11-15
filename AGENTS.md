@@ -265,7 +265,7 @@ AI_ENGINEERING_SPEC=<主规范路径> ...          # 覆盖默认主规范位置
 | 任务-对话映射 | [docs/session-map.md](docs/session-map.md)（当前 3 列，待按 9.5 升到 4 列） |
 | 门禁入口 | `tools/check.sh`（`g0-decisions` / `g1-command` / `g1-phase-card` / `g3-ph01` / `g4-static` / `g5-anchor` / `g6-contract` / `g7-asan` / `g7-leak`） |
 | 文档 snippet | 未建（`docs/snippets/`，待首个可运行示例） |
-| Issue 台账 | 未建（`issues/<id>.md`，前缀 `FSG-<n>`） |
+| Issue 台账 | 已建 `issues/`（前缀 `FSG-<n>`）：FSG-01（版本链断裂，`open`） |
 | 决策记录 | 已建 `docs/decisions/`：D-001…D-005（均「已裁」，签字「主控（用户授权）」） |
 | 版本落点 | `ct.pkg#version`（当前 `0.1.0`；PH-01 的 `version-minor` 为 1） |
 | 偏离项 | 无（见 0.3） |
