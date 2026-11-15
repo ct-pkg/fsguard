@@ -134,7 +134,7 @@ $ git show-ref --tags
 
 ### 4.3 将来怎么拆步
 
-等 1.5 三条全部成立后，按三步走，不按外部阶段划分：
+等 1.5 三条全部成立后，按三步走，分期由本仓自己定：
 
 1. **落地一步**：提交 `ct.pkg` 的 `publisher` / `ns-root`，同时删掉 `tools/check.sh` 与文档示例里的
    `-I src` / `-Isrc`，更新 D-011；跑 `bash tools/check.sh all`，并让一个最小消费者只走安装完成 import。
