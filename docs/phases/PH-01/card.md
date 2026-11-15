@@ -3,7 +3,7 @@
 id: PH-01
 status: in-progress
 opened: 2026-11-15
-spec-version: 1.9.0
+spec-version: 1.10.0
 version-minor: 1
 roadmap: docs/planning/fsguard-roadmap.md
 

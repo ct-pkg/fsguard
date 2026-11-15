@@ -67,7 +67,7 @@ g1_phase_card() {
     [ -f "$f" ] || fail "G1: missing $f"
     grep -q "^id: $ph\$" "$f" || fail "G1: $f missing field: id: $ph"
     grep -q "^version-minor: $vm\$" "$f" || fail "G1: $f missing field: version-minor: $vm"
-    grep -q '^spec-version: 1\.9\.0$' "$f" || fail "G1: $f missing field: spec-version: 1.9.0"
+    grep -q '^spec-version: 1\.10\.0$' "$f" || fail "G1: $f missing field: spec-version: 1.9.0"
     for sec in 目标 范围 交付物清单 任务清单 退出判据 依赖 已知风险; do
       grep -q "^## $sec\$" "$f" || fail "G1: $f missing section: $sec"
     done
