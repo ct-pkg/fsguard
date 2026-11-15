@@ -4,10 +4,9 @@
 安装器只按包名给出一个包含根，实际会报 `cannot resolve import 'fsguard/FsGuard'`。
 下面四件事是把「装上就能 import」和「可发布」补齐。
 
-**前提更正**：安装器读取 `publisher`、编译器按 `ns-root` 自动加入搜索根、`ct build` 默认读 lock，
-这三项能力已经具备，不再是挂起理由。本机安装的编译器尚未包含这些能力——用 `ct build` 不传 `-I`
-实测仍报 `cannot resolve import 'fsguard/FsGuardOps'`。因此四项从「等能力出现」改判为
-「落地配置 + 更新本机工具链后验证」，其中 1.1 现在就能做。
+**前提更正（2026-11-16 复核）**：安装器读取 `publisher`、编译器按 `ns-root` 补搜索根、
+`ct build` 默认读 lock，三项在本机 `ct v0.58.0` 上均已实测体现（见 1.5），不再是挂起理由。
+四项从「等能力出现」改判为「落地配置 + 提交包声明 + 建消费者夹具」，其中 1.1 现在就能做。
 
 ## 1 要做的四件事
 
@@ -18,8 +17,9 @@
 - **要做什么**：`ct.pkg` 增加 `publisher = ct`、`ns-root = src`。工作区已有这两行草稿，尚未提交。
 - **验收**：`grep -x 'publisher = ct' ct.pkg`、`grep -x 'ns-root = src' ct.pkg` 均命中；
   一个最小消费者只走包管理器安装、不手写任何 `-I`，能 import `fsguard::FsGuardOps`。
-- **状态**：**可立即开工**（字段已经写好，待提交）。消费者验收要等本机工具链更新后再跑；
-  在此之前不做「假装通过」的本地验证。
+- **状态**：**可立即开工**（字段已经写好，待提交）。2026-11-16 用 `ct v0.58.0` 实测：`ct install`
+  已打印 `-I …/pkg/ct/fsguard/0.1.0/src` 的 build 命令，消费者 `import fsguard::FsGuard` 不再报
+  `cannot resolve import`；但 C 头包含根仍需 `--cflags "-I<ns-root>"`，验收命令必须带它并实际运行。
 
 ### 1.2 构建命令不再手写包含根
 
@@ -30,7 +30,8 @@
   并同步修正文档示例里的同样写法；`ct.pkg` 不新增 `cflags` 字段。
 - **验收**：`grep -rn -- '-Isrc' tools/check.sh` 为 0 命中；`bash tools/check.sh all` 仍为 rc=0；
   消费者侧仍能只靠包管理器安装完成 import。
-- **状态**：**可开工，但要先更新本机工具链**。当前编译器不认 `ns-root`，先删 `-I` 会让门禁直接变红。
+- **状态**：**部分可开工**。当前 `ct v0.58.0` 已认 `ns-root` 与 lock（import 侧可去掉 `-I src`），
+  但 C 头包含根仍需 `--cflags "-Isrc"`；因此在 1.1 的消费者验收通过前，不删门禁里的 `-I src`。
 
 ### 1.3 打 `v0.1.0` tag
 
@@ -58,8 +59,16 @@
 2. 编译器把 `ns-root` 自动加入搜索根——删掉手写 `-I src` 后仍能 import。
 3. `ct build` 默认读 lock——不传 `-I` 也能解析依赖。
 
-当前自查结果：本机编译器三条都未体现（不传 `-I` 仍报 `cannot resolve import`）。
-这是**本机工具链待更新**，不是能力缺失；更新后重跑同一条命令即可确认。
+当前自查结果（2026-11-16，`ct v0.58.0`，Darwin）：
+
+1. 安装器读 `publisher` 并落 store：`ct get` 输出 `vendored 1 package(s)`，lock 记录 `ct/fsguard 0.1.0`。
+2. 编译器按 `ns-root` 补搜索根：`ct install` 打印 `-I …/fsguard/0.1.0/src`；`ct build main.ct`
+   不再报 `cannot resolve import`（**具备**）。
+3. `ct build` 默认读 lock：lock 为 `# ct-lock 2`，build 自动用 dev override 解析到本仓（**具备**）。
+
+剩余缺口两条，均属本仓或上沿而非「能力未出现」：`ct build` 未把 `ns-root` 传给 C 编译器，
+头包含根要显式 `--cflags "-I<ns-root>"`；`ct install` 仍不校验 import 解析（上游 PKG-6 open），
+rc=0 不能当解析证明。
 
 ## 2 当前实际状态（待决）
 
