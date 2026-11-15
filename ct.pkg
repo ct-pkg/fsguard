@@ -9,6 +9,8 @@
 # 绑定：`.h.ct` 放公开类型与 impl，`.m.ct` 放静态映射宿主，C 适配层
 # 在 `FsGuardOps.shim.h`。
 name = fsguard
+publisher = ct
+ns-root = src
 version = 0.1.0
 licence = MIT
 requires = ct >= 0.44.1

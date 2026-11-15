@@ -24,7 +24,7 @@ roadmap: docs/planning/fsguard-roadmap.md
 
 | 项 | 状态与条件（逐条） |
 | --- | --- |
-| R-01 判据 2/3：消费者只 import `.m.ct` 的消费者测试 | **已移出 PH-04（D-013）**：上游 `ns-root`/包机制已交付（v0.55.0 定根、v0.58.0 读 lock；PKG-2 已解决），本机 v0.58.0 实测 `ct install` 打印 `-I …/src`、`ct build` 不再报 `cannot resolve import`；剩余是本仓 `publisher`/`ns-root` 未提交与消费者夹具，转打包 1.1 与 PH-05 首任务，判据原文不动 |
+| R-01 判据 2/3：消费者只 import `.m.ct` 的消费者测试 | **已移出 PH-04（D-013）**：上游 `ns-root`/包机制已交付（v0.55.0 定根、v0.58.0 读 lock；PKG-2 已解决），本机 v0.58.0 实测 `ct install` 打印 `-I …/src`、`ct build` 不再报 `cannot resolve import`；本仓 `publisher`/`ns-root` 已提交（打包 1.1，`ct pkg check` 四条判据全过），剩余消费者夹具，转 PH-05 首任务，判据原文不动 |
 | R-03 判据 1/2/3：`std::fs` / `std::str` 共存与同名 `walk` 的歧义/限定调用 | **依赖共享库机制落地后才转门禁，期间保持未实施**：需要两个 `map trait` 在同一单元映射同名方法并支持 `FsGuardOps::walk(...)` 限定调用；当前不写假通过的负例 |
 | R-02 限定名断言：`FsErrCode::FS_ERR_*` | **已移出 PH-04（D-013）**：上游 `Type::Member` 仍缺（LANG-15 open，排 PH-57 / v0.59.0；本机 v0.58.0 实测报 `qualified type names are not supported`）；转 PH-05，触发 `ct >= v0.59.0` 后复跑限定名用例 |
 | R-17 Linux LSan 记录回填 | **等一台 Linux**：`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 后按模板回填 `docs/reviews/fsguard-lsan-linux.md`；`g7-lsan-record` 保持红 |
@@ -64,7 +64,7 @@ roadmap: docs/planning/fsguard-roadmap.md
 | --- | --- |
 | battle | `docs/reviews/fsguard-r01-r02-battle.md`（B-002，裁定 C） |
 | 决策 | `docs/decisions/D-013.md`（签字：主控（用户授权 2026-11-16 battle）） |
-| R-01 判据 2/3 去向 | 打包 1.1（提交 `publisher`/`ns-root`）+ PH-05 首任务；验收必须实际 build + 运行，不得只看 `ct install` rc=0（PKG-6 open） |
+| R-01 判据 2/3 去向 | 打包 1.1（`publisher`/`ns-root` 已提交）+ PH-05 首任务；验收必须实际 build + 运行，不得只看 `ct install` rc=0（PKG-6 open） |
 | R-02 限定名去向 | PH-05；触发条件 `ct >= v0.59.0`（LANG-15 / PH-57）后复跑限定名用例，未触发前不实施 |
 | 不变 | 判据原文、验收命令与需求条目不动；R-03、R-17 仍挂起，PH-04 仍不得收口 |
 

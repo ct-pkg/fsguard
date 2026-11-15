@@ -8,7 +8,7 @@
 $ bash tools/check.sh g3-ph04 all
 # rc=0
 # 判据 1/4：包内无 `pub trait … for char *`，.h.ct/.m.ct 无 #define。
-# 判据 2/3（消费者测试）挂起（后半）：等 ns-root/包机制能标准安装。
+# 判据 2/3（消费者测试）待建夹具：`ns-root` 已定根、`publisher` 已提交（打包 1.1）；不手写 import 根，实际 build + 运行后接门禁。
 ```
 
 ## R-02 错误码枚举

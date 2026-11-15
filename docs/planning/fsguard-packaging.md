@@ -1,6 +1,6 @@
 # fsguard 包安装与发布前置
 
-本仓的单元在 `src/fsguard/`，包清单只写了 `name = fsguard`。消费者通过包管理器安装后，
+本仓的单元在 `src/fsguard/`，包清单此前只写了 `name = fsguard`。消费者通过包管理器安装后，
 安装器只按包名给出一个包含根，实际会报 `cannot resolve import 'fsguard/FsGuard'`。
 下面四件事是把「装上就能 import」和「可发布」补齐。
 
@@ -14,10 +14,10 @@
 
 - **为什么**：消费者不应自己推算 `-I`；包清单需要说明「谁发布」以及「命名空间根在哪一层」。
   否则安装结果与源码布局对不上，消费者必失败。
-- **要做什么**：`ct.pkg` 增加 `publisher = ct`、`ns-root = src`。工作区已有这两行草稿，尚未提交。
+- **要做什么**：`ct.pkg` 增加 `publisher = ct`、`ns-root = src`。两行已提交，`ct pkg check` 四条判据全过。
 - **验收**：`grep -x 'publisher = ct' ct.pkg`、`grep -x 'ns-root = src' ct.pkg` 均命中；
   一个最小消费者只走包管理器安装、不手写任何 `-I`，能 import `fsguard::FsGuardOps`。
-- **状态**：**可立即开工**（字段已经写好，待提交）。2026-11-16 用 `ct v0.58.0` 实测：`ct install`
+- **状态**：**已落地**（字段已提交，`ct pkg check` 四条判据全过）。2026-11-16 用 `ct v0.58.0` 实测：`ct install`
   已打印 `-I …/pkg/ct/fsguard/0.1.0/src` 的 build 命令，消费者 `import fsguard::FsGuard` 不再报
   `cannot resolve import`；但 C 头包含根仍需 `--cflags "-I<ns-root>"`，验收命令必须带它并实际运行。
 
@@ -72,20 +72,19 @@ rc=0 不能当解析证明。
 
 ## 2 当前实际状态（待决）
 
-### 2.1 工作区未提交的 `ct.pkg` 改动
+### 2.1 `ct.pkg` 的包身份字段
 
 ```
-$ git status --short
- M ct.pkg
-
-$ git diff -- ct.pkg
-+publisher = ct
-+ns-root = src
+$ grep -x 'publisher = ct' ct.pkg
+publisher = ct
+$ grep -x 'ns-root = src' ct.pkg
+ns-root = src
 ```
 
-- 现状：只在工作区，未暂存、未提交；`version`、`licence`、`requires` 未动。
-- 处置：本文只做重判，不在这轮提交这两行；下一步按 1.1 开工时单独提交。
-- 建议：先更新本机工具链，再提交这两行并跑验证；若届时决定不采用，只回退这两行即可。
+- 现状：`publisher` / `ns-root` 已提交；`version`、`licence`、`requires` 未动
+  （`licence` 为 MIT，与 `LICENSE` 及文档表述一致）。
+- 处置：已按 1.1 单独提交，工作区其他改动未并入。
+- 建议：后续按 1.2 删除手写包含根，再跑消费者验证。
 
 ### 2.2 本地备份 tag
 
@@ -130,8 +129,8 @@ $ git show-ref --tags
 ### 4.1 现在完成到什么程度
 
 - 文档认领与重判：四件事的为什么、做什么、怎么验收、当前状态都已写清，本文件即台账。
-- 实际实施：**0 / 4**。`ct.pkg` 只有两条未提交草稿；`tools/check.sh` 仍有 4 处手写 `-I src`；
-  没有 `v0.1.0` tag；D-011 仍是原文。
+- 实际实施：**1 / 4**。`ct.pkg` 的 `publisher` / `ns-root` 已提交且 `ct pkg check` 四条判据全过；
+  `tools/check.sh` 仍有 4 处手写 `-I src`；没有 `v0.1.0` tag；D-011 仍是原文。
 - 阻塞点从「能力缺失」变成「本机工具链待更新」；1.1 本身不再被阻塞。
 
 ### 4.2 该不该立 phase
@@ -155,7 +154,7 @@ $ git show-ref --tags
 
 **从「保持挂起」改为「按顺序开工」**：
 
-- 立即：1.1 可以提交（字段已就绪），但消费者验收等环境步；
+- 立即：1.1 已提交（字段就绪且 `ct pkg check` 全过），消费者验收等环境步；
 - 环境步完成后：1.2、1.4 依次做，然后验证；
 - 最后：1.3 打 tag。
 

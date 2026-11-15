@@ -37,7 +37,7 @@
 
 | R | 状态 | 依据 |
 | --- | --- | --- |
-| R-01 | 判据 1/4 已实施；判据 2/3 移出（D-013） | 判据 1/4 由 `g3-ph04 all` 核对；判据 2/3 的上游阻塞已解除（PKG-2 已解决：v0.55.0 `ns-root`、v0.58.0 读 lock），剩余为本仓 `publisher`/`ns-root` 未提交与消费者夹具，转打包 1.1 + PH-05 首任务 |
+| R-01 | 判据 1/4 已实施；判据 2/3 移出（D-013） | 判据 1/4 由 `g3-ph04 all` 核对；判据 2/3 的上游阻塞已解除（PKG-2 已解决：v0.55.0 `ns-root`、v0.58.0 读 lock）；本仓 `publisher`/`ns-root` 已提交（打包 1.1，`ct pkg check` 四条判据全过），剩余消费者夹具，转 PH-05 首任务 |
 | R-02 | 部分（判据 2 移出，D-013） | 10 码与 `NOT_DIR` 已收口（D-009）；**缺项**：限定名 `FsErrCode::*` 在 ct v0.58.0 仍报 `qualified type names are not supported`（LANG-15 open，排 PH-57 / v0.59.0）；按 D-013 转 PH-05，触发 `ct >= v0.59.0` 后复跑 |
 | R-03 | 挂起（后半） | 判据 4（四名与 std 22 名交集为空）已由 `g3-ph04 all` 核对；判据 1/2 的共存形态已在 `docs/reviews/fsguard-std-overlap.md` §4 验证；**判据 3（两个 trait 同名 `walk` 的歧义/限定调用）依赖共享库机制落地后才转门禁，期间保持未实施** |
 | R-04 | 可验收 | Q-5 已裁（D-001），负 offset→`FS_ERR_IO` |
