@@ -2,8 +2,7 @@
 #
 # 本包分两半：`char *` 上的无状态词法原语（read_chunk / normalize_to /
 # walk / is_under），以及 `FsGuard *` 上的有状态策略（check / 读写 /
-# 遍历）。当前 PH-01 只落词法核心：错误码、normalize_to、is_under、
-# check；读写与遍历分别在 PH-02、PH-03。
+# 遍历）。PH-01…PH-05 已收口：词法核心、读写、遍历、包形态与收口验收。
 #
 # 平台：POSIX（macOS / Linux）。Win32 不在本轮范围。
 # 绑定：`.h.ct` 放公开类型与 impl，`.m.ct` 放静态映射宿主，C 适配层
@@ -11,7 +10,7 @@
 name = fsguard
 publisher = ct
 ns-root = src
-version = 0.4.0
+version = 0.5.0
 licence = MIT
 requires = ct >= 0.44.1
 dep = std@0.3.2

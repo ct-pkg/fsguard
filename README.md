@@ -2,7 +2,7 @@
 
 `std::fs` 之上的词法路径策略层：`char *` 上的无状态原语 + `FsGuard` 有状态检查。
 
-- 状态：PH-01/PH-02/PH-03 已收口；PH-04 前半进行中（文档口径、R-15、R-16、FSR-02/03/04），后半挂起（R-01 判据 2/3、R-03、R-02 限定名、R-17 Linux 记录），前半全绿也不得收口。
+- 状态：PH-01…PH-05 已收口；17 条 R 全部可验收（R-17 判据 5 的 Linux LSan 记录见 `docs/reviews/fsguard-lsan-linux.md`）。FSG-02（`ct install` 不识别 `.m.ct`）仍是上游 open，不阻塞 `ct build` + 运行验收。
 - 边界：**这是词法策略层，不是安全边界；不解析符号链接、不防 TOCTOU。**
 - 门禁：`bash tools/check.sh all`。
 

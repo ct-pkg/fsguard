@@ -5,7 +5,7 @@
 
 ## 1 结论
 
-**PH-01/PH-02/PH-03 已收口：遍历与策略已落地；PH-04 已收口（R-17 判据 5 记环境缺口）。** 需求口径上 17 条中 15 条可验收、2 条部分可验收（R-02/R-17）、0 条不可验收。R-15、R-16 与 FSR-02/03/04 证据已落；R-03 判据 1/2/3 已按 D-014 落地（`dep = std@0.3.2` + `ct.lock`，用例 `r03_coexist` / `r03_qualified` / `r03_ambiguous`，门禁 `g3-ph04 r03`）。R-17 判据 5 在本机无法验证（Linux 虚拟机启动失败），已登记 `issues/FSG-03.md` 并按「跑不完登记环境缺口」收口，不伪造记录。R-01 判据 2/3 与 R-02 限定名按 D-013 移出 PH-04：前者上游已交付，剩余属打包 1.1 + PH-05；后者等 `ct >= v0.59.0`（LANG-15 / PH-57）。
+**PH-01…PH-05 已收口：17 条 R 全部可验收、0 条部分、0 条不可验收。** 需求口径上，PH-04 收口时留下的三条判据已由 PH-05 补齐：R-01 判据 2/3 由 `g3-ph05 consumer` 覆盖（消费者只 import 本包，四方法 + `FsWalkCb` 运行断言）；R-02 判据 2 由 `g3-ph01 r02` 覆盖（裸名与限定名 `FsErrCode::*` 分别取值）；R-17 判据 5 由 Linux 实测记录 `docs/reviews/fsguard-lsan-linux.md` 覆盖，`g7-lsan-record` 转绿。R-03 判据 1/2/3 仍按 D-014 走 `dep = std@0.3.2` + `ct.lock`（`g3-ph04 r03`）。FSG-02（`ct install` 不识别 `.m.ct`）仍是上游 open，不阻塞 R-01 的 build + 运行验收。
 
 ## 2 威胁模型五处（承接 FSR-02…06）
 
@@ -31,14 +31,14 @@
 | `ELOOP` | 已收口（D-009） | 归 `FS_ERR_IO`，PH-02 有环用例 |
 | H-7 | 已关闭（D-010） | R-11 判据 3 改为可核对条款，不再挂「部分」 |
 | Q-1 / H-3 | 已裁（D-012） | 放弃「沙箱 / 安全边界」主张，只做词法策略层；TOCTOU/硬链接/挂载点/超长路径/符号链接环不在防护范围 |
-| LSan | 环境缺口已登记（FSG-03） | R-17 判据 5 仍「未验证」：本机无法启动 Linux 虚拟机（`krunkit` `VmCreate` 失败），`docs/reviews/fsguard-lsan-linux.md` 不产生；`g7-lsan-record` 保持红，拿到 Linux 主机后回填即关闭 |
+| LSan | 已收口（FSG-03，2026-11-17） | R-17 判据 5 已在 Linux 上实测：`host: Linux 6.1.0-54-cloud-arm64 aarch64`，`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 输出 `PASS: g7-leak: Linux ASan+LSan caught the leak`；记录回填 `docs/reviews/fsguard-lsan-linux.md`，`g7-lsan-record` rc=0 |
 
 ## 4 R 状态
 
 | R | 状态 | 依据 |
 | --- | --- | --- |
-| R-01 | 判据 1/4 已实施；判据 2/3 移出（D-013） | 判据 1/4 由 `g3-ph04 all` 核对；判据 2/3 的上游阻塞已解除（PKG-2 已解决：v0.55.0 `ns-root`、v0.58.0 读 lock）；本仓 `publisher`/`ns-root` 已提交（打包 1.1，`ct pkg check` 四条判据全过），剩余消费者夹具，转 PH-05 首任务 |
-| R-02 | 部分（判据 2 移出，D-013） | 10 码与 `NOT_DIR` 已收口（D-009）；**缺项**：限定名 `FsErrCode::*` 在 ct v0.58.0 仍报 `qualified type names are not supported`（LANG-15 open，排 PH-57 / v0.59.0）；按 D-013 转 PH-05，触发 `ct >= v0.59.0` 后复跑 |
+| R-01 | **可验收** | 判据 1/4 由 `g3-ph04 all` 核对；判据 2/3 由 `g3-ph05 consumer` 覆盖：消费者只 import 本包，四方法 + `FsWalkCb` 运行断言，16 checks。`publisher`/`ns-root` 已提交，`ct pkg check` 四条判据全过；`ct install` 的 `.m.ct` 缺陷仍是 FSG-02（上游 open），验收按 D-015 走 `ct build` + 运行 |
+| R-02 | **可验收** | 10 码、`NOT_DIR` 与裸名已收口（D-009）；限定名 `FsErrCode::*` 在 `ct v0.62.0` 已可用，`g3-ph01 r02` 的 11 条 qualified 断言与 22 checks 全绿（D-013 的触发条件 `ct >= v0.59.0` 已满足） |
 | R-03 | 已实施（D-014） | 判据 1/2：`r03_coexist` 在同一 `char *` 上并存 `std::fs` 的 `exists` / `std::str` 的 `len` 与本包 `read_chunk`，7 checks 全绿；判据 3：`r03_qualified` 的 `FsGuardOps::walk` 编译运行，`r03_ambiguous` 的未限定 `walk` 必须报歧义；判据 4 由 `g3-ph04 all` 的 22 名交集核对。依赖走 `dep = std@0.3.2` + `ct.lock`，`vendor/` 不提交；`ct install` 的 `.m.ct` 缺陷见 `issues/FSG-02.md` |
 | R-04 | 可验收 | Q-5 已裁（D-001），负 offset→`FS_ERR_IO` |
 | R-05 | **可验收** | Q-3（D-003）与重叠拒绝（D-008）已裁；`g3-ph01 r05` 绿 |
@@ -53,7 +53,7 @@
 | R-14 | **可验收** | `ENOTDIR → NOT_DIR`、`ELOOP → IO`（D-009）；`g3-ph02 r14` 绿 |
 | R-15 | **已实施** | `g3-ph04 r15`（7 checks）：`a\b` 字面保留、`\` 不作段边界、驱动器形式不解析；`src` 无 Win32 |
 | R-16 | **已实施**（判据 1 待外部核对） | `g3-ph04 all` 核对 README「能力对照表」与 trait 四名；`std` 仓零改动只能在 std 侧只读 `git status` 确认 |
-| R-17 | 部分 | 判据 1–4 本机可执行（运行时夹具、门禁覆盖、集合排序、ASan）；**缺项**：判据 5 的 LSan 结论只能由 Linux 给出。本机无法启动 Linux 虚拟机（`podman machine start` / `krunkit` 失败），**环境缺口已登记 `issues/FSG-03.md`**；判据 5 保持「未验证」，拿到 Linux 主机后按 `docs/reviews/fsguard-lsan-linux.md.tmpl` 回填 |
+| R-17 | **可验收** | 判据 1–4 本机可执行（运行时夹具、门禁覆盖、集合排序、ASan）；判据 5 已在 Linux 上实测并回填 `docs/reviews/fsguard-lsan-linux.md`，`g7-lsan-record` rc=0（FSG-03） |
 
 ## 5 锚点说明
 
@@ -100,13 +100,24 @@
 
 门禁红绿原始输出见 `docs/reviews/fsguard-ph03-evidence.md`。
 
+## 6.3 PH-05 实施状态
+
+| 项 | 状态 | 证据 |
+| --- | --- | --- |
+| 消费者夹具（R-01 判据 2/3） | 已实现 | `bash tools/check.sh g3-ph05 consumer`（16 checks） |
+| 限定名断言（R-02 判据 2） | 已实现 | `bash tools/check.sh g3-ph01 r02`（11 qualified + 22 checks） |
+| Linux LSan 记录（R-17 判据 5） | 已回填 | `bash tools/check.sh g7-lsan-record` rc=0；`docs/reviews/fsguard-lsan-linux.md` |
+| 全量 | 绿 | `bash tools/check.sh all` rc=0 |
+
+门禁红绿原始输出见 `docs/reviews/fsguard-ph05-evidence.md`。
+
 ## 7 泄漏与平台
 
 - Darwin：`bash tools/check.sh g7-leak` 打印 SKIP（原因 + Linux 命令 + 回填路径）并以 **rc=0** 结束；SKIP 不是泄漏结论。
-- 泄漏结论只认 Linux 记录：`bash tools/check.sh g7-lsan-record` 校验 `docs/reviews/fsguard-lsan-linux.md` 含 `host: Linux …`、确切命令与 `PASS: g7-leak: Linux ASan+LSan caught the leak` 原文；缺记录或占位符判红。**当前红：环境缺口已登记 `issues/FSG-03.md`（本机无法启动 Linux 虚拟机），不是通过，也不伪造记录**。
+- 泄漏结论只认 Linux 记录：`bash tools/check.sh g7-lsan-record` 校验 `docs/reviews/fsguard-lsan-linux.md` 含 `host: Linux …`、确切命令与 `PASS: g7-leak: Linux ASan+LSan caught the leak` 原文；缺记录或占位符判红。**当前绿**：PH-05 已在 Linux 上实测并回填（FSG-03），`g7-lsan-record` rc=0；Darwin 的 SKIP 仍不是结论。
 - Linux 补跑：`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak`，按 `docs/reviews/fsguard-lsan-linux.md.tmpl` 回填后再跑 `g7-lsan-record`。
 - 本机可跑：`bash tools/check.sh g7-asan`（干净夹具 rc=0，UAF 被捕获；已加看门狗，`asan_uaf` 不退出也会被收口）。
-- `all`：Darwin 上 `g7-leak` 为 rc=0，`all` 因此 rc=0；SKIP 不是结论，`g7-lsan-record` 需单独跑，**当前红**（防呆项；按 FSG-03 登记为环境缺口，不并入 `all`，拿到 Linux 后转绿）。
+- `all`：Darwin 上 `g7-leak` 为 rc=0，`all` 因此 rc=0；SKIP 不是结论，`g7-lsan-record` 需单独跑。**当前绿**（FSG-03 已在 Linux 取证，记录见 `docs/reviews/fsguard-lsan-linux.md`）；仍不并入 `all`，保留防呆。
 
 ## 8 与 `ct-pkg/std` 的关系（D-011）
 
