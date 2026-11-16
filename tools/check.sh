@@ -87,17 +87,17 @@ g1_command() {
 g1_phase_card() {
   sel="${1:-all}"
   case "$sel" in
-    all) list="PH-01 PH-02 PH-03 PH-04" ;;
-    PH-01|PH-02|PH-03|PH-04) list="$sel" ;;
-    *) echo "usage: $0 g1-phase-card {PH-01|PH-02|PH-03|PH-04|all}"; exit 2 ;;
+    all) list="PH-01 PH-02 PH-03 PH-04 PH-05" ;;
+    PH-01|PH-02|PH-03|PH-04|PH-05) list="$sel" ;;
+    *) echo "usage: $0 g1-phase-card {PH-01|PH-02|PH-03|PH-04|PH-05|all}"; exit 2 ;;
   esac
   for ph in $list; do
     f="docs/phases/$ph/card.md"
-    vm="${ph#PH-0}"
+    vm=$((10#${ph#PH-}))
     [ -f "$f" ] || fail "G1: missing $f"
     grep -q "^id: $ph\$" "$f" || fail "G1: $f missing field: id: $ph"
     grep -q "^version-minor: $vm\$" "$f" || fail "G1: $f missing field: version-minor: $vm"
-    grep -q '^spec-version: 1\.10\.0$' "$f" || fail "G1: $f missing field: spec-version: 1.9.0"
+    grep -q '^spec-version: 1\.10\.0$' "$f" || fail "G1: $f missing field: spec-version: 1.10.0"
     for sec in 目标 范围 交付物清单 任务清单 退出判据 依赖 已知风险; do
       grep -q "^## $sec\$" "$f" || fail "G1: $f missing section: $sec"
     done
@@ -134,6 +134,9 @@ g3_ph01() {
     if grep -rq '#define FS_ERR_' src/fsguard 2>/dev/null; then
       fail "G3:R-02 #define FS_ERR_ found in src/fsguard"
     fi
+    n="$(grep -c 'check(FsErrCode::' test/fsguard/r02_errors.ct || true)"
+    [ "$n" -ge 10 ] || fail "G3:R-02 qualified names: expected >=10 qualified assertions, got $n"
+    echo "ok r02_qualified: $n qualified assertions"
   fi
   for name in $tests; do
     src="test/fsguard/$name.ct"
@@ -256,6 +259,51 @@ g3_ph03() {
     echo "ok $name: $(grep -c '^ok ' "$TMP/$name.out") checks"
   done
   pass "g3-ph03: $sel green"
+}
+
+# PH-05 消费者夹具：只 import 本包单元，不 include 包内头，四方法与回调都要运行断言。
+g3_ph05() {
+  CT="${CT:-$HOME/.local/bin/ct}"
+  [ -x "$CT" ] || fail "G3: ct not found at $CT (set CT=/path/to/ct)"
+  sel="${1:-all}"
+  case "$sel" in
+    consumer) tests="consumer" ;;
+    all) tests="consumer" ;;
+    *) echo "usage: $0 g3-ph05 {consumer|all}"; exit 2 ;;
+  esac
+  for name in $tests; do
+    src="test/consumer/$name.ct"
+    [ -f "$src" ] || fail "G3: missing $src"
+    # 消费者不得靠直接包含包内头绕过 import；头包含根只由 cflags 提供。
+    if grep -q '#include "fsguard/' "$src"; then
+      fail "G3: $src includes package-internal headers; consumer must import the package"
+    fi
+    grep -q 'import fsguard::FsGuard;' "$src" || fail "G3: $src missing import fsguard::FsGuard"
+    grep -q 'import fsguard::FsGuardOps;' "$src" || fail "G3: $src missing import fsguard::FsGuardOps"
+    "$CT" build "$src" -I src --cflags "-Isrc" -o "$TMP/$name" >"$TMP/$name.build" 2>&1
+    if [ $? -ne 0 ]; then
+      cat "$TMP/$name.build"
+      fail "G3: build $name failed"
+    fi
+    "$TMP/$name" >"$TMP/$name.out" 2>&1
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+      cat "$TMP/$name.out"
+      fail "G3: $name rc=$rc"
+    fi
+    if grep -q '^not ok' "$TMP/$name.out"; then
+      cat "$TMP/$name.out"
+      fail "G3: $name reported not ok"
+    fi
+    if grep -q '^skip' "$TMP/$name.out"; then
+      cat "$TMP/$name.out"
+      fail "G3: $name skipped a fixture (environment gap, not a pass)"
+    fi
+    grep -q 'all checks passed' "$TMP/$name.out" \
+      || { cat "$TMP/$name.out"; fail "G3: $name missing summary line"; }
+    echo "ok $name: $(grep -c '^ok ' "$TMP/$name.out") checks"
+  done
+  pass "g3-ph05: $sel green"
 }
 
 # FSR-02/03 的已知绕过负例与 FSR-04 手工清单。断言「绕过成立」，不是防护测试。
@@ -387,9 +435,9 @@ g4_static() {
   # PH-04 前半 T-01：六处文档口径。
   grep -q 'D-001…D-012 后' "$f" || fail "G4: status title still names D-001…D-010"
   grep -q '0\.44\.1' "$f" && fail "G4: status still cites the old ct 0.44.1"
-  grep -q '15 条可验收、2 条部分可验收' docs/planning/fsguard-roadmap.md \
-    || fail "G4: roadmap still carries the 13/4 counts"
-  for ph in PH-01 PH-02 PH-03; do
+  grep -q '17 条可验收、0 条部分可验收' docs/planning/fsguard-roadmap.md \
+    || fail "G4: roadmap does not carry the 17/0 final counts"
+  for ph in PH-01 PH-02 PH-03 PH-04 PH-05; do
     grep -q '^status: closed$' "docs/phases/$ph/card.md" || fail "G4: $ph card is not closed"
   done
   grep -q '超长路径.*已收口' "$f" || fail "G4: FSR-05 is not marked closed"
@@ -449,6 +497,16 @@ g6_contract() {
   [ "$rc2" -ne 0 ] || fail "G6: g0-decisions did not fail on broken copy"
   printf '%s\n' "$out2" | grep -q 'G0' || fail "G6: g0 failure missing G0 id"
   printf '%s\n' "$out2" | grep -q 'D-002' || fail "G6: g0 failure missing D-002"
+  # PH-05 负例：卡片缺 version-minor → g1-phase-card 必红。
+  mkdir -p "$c/docs/phases/PH-05"
+  cp docs/phases/PH-05/card.md "$c/docs/phases/PH-05/card.md"
+  grep -v '^version-minor:' "$c/docs/phases/PH-05/card.md" > "$c/docs/phases/PH-05/card.broken"
+  mv "$c/docs/phases/PH-05/card.broken" "$c/docs/phases/PH-05/card.md"
+  out5="$(FSGUARD_ROOT="$c" "$ROOT/tools/check.sh" g1-phase-card PH-05 2>&1)"
+  rc5=$?
+  [ "$rc5" -ne 0 ] || fail "G6: g1-phase-card accepted PH-05 without version-minor"
+  printf '%s\n' "$out5" | grep -q 'PH-05' || fail "G6: PH-05 negative failure lacks the PH-05 id"
+  printf '%s\n' "$out5" | grep -q 'version-minor' || fail "G6: PH-05 negative failure lacks version-minor"
   # D-014 双向负例：声明了 dep 但 lock 缺行 → 必红；未声明 dep → 不得因此判红。
   c2="$TMP/contract-dep"
   mkdir -p "$c2"
@@ -600,6 +658,7 @@ case "$CASE" in
   g3-ph02) g3_ph02 "$@"; exit 0 ;;
   g3-ph03) g3_ph03 "$@"; exit 0 ;;
   g3-ph04) g3_ph04 "$@"; exit 0 ;;
+  g3-ph05) g3_ph05 "$@"; exit 0 ;;
   g4-static) g4_static; exit 0 ;;
   g5-anchor) g5_anchor; exit 0 ;;
   g6-contract) g6_contract; exit 0 ;;
@@ -614,6 +673,7 @@ case "$CASE" in
     g3_ph02
     g3_ph03
     g3_ph04
+    g3_ph05
     g4_static
     g5_anchor
     g6_contract
@@ -623,12 +683,16 @@ case "$CASE" in
     [ "$leak_rc" -eq 0 ] || exit "$leak_rc"
     # SKIP 不是泄漏结论：单独跑 g7-lsan-record 才给结论；all 在 Darwin 上仍以 0 收口。
     if [ "$(uname -s)" = "Darwin" ]; then
-      echo "NOTE: g7-leak SKIPped on Darwin; run 'bash tools/check.sh g7-lsan-record' — red until a Linux record lands."
+      if [ -f "$LSAN_RECORD" ]; then
+        echo "NOTE: g7-leak SKIPped on Darwin; Linux record present, verify with 'bash tools/check.sh g7-lsan-record'."
+      else
+        echo "NOTE: g7-leak SKIPped on Darwin; run 'bash tools/check.sh g7-lsan-record' — red until a Linux record lands."
+      fi
     fi
     exit 0
     ;;
   *)
-    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|PH-03|PH-04|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g3-ph03 [r07|r10|r13]|g3-ph04 [r15|r18|all]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|g7-lsan-record|all}"
+    echo "usage: $0 {g0-decisions|g1-command|g1-phase-card [PH-01|PH-02|PH-03|PH-04|PH-05|all]|g3-ph01 [r02|r05|r06|r09]|g3-ph02 [r04|r08|r11|r12|r14]|g3-ph03 [r07|r10|r13]|g3-ph04 [r03|r15|r18|all]|g3-ph05 [consumer|all]|g4-static|g5-anchor|g6-contract|g7-asan|g7-leak|g7-lsan-record|all}"
     exit 2
     ;;
 esac

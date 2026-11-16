@@ -1,0 +1,141 @@
+/*
+ * R-01 判据 2/3：消费者只 import 本包，不直接包含包内头。
+ *
+ * $ bash tools/check.sh g3-ph05 consumer
+ *
+ * 判据 2：消费者单元只 import 本包的 `.m.ct` / `.h.ct`，对 `char *` 调
+ *         `normalize_to` / `is_under` / `read_chunk` / `walk` 并 assert 返回值。
+ * 判据 3：`FsWalkCb` 从 `.h.ct` 可见；消费者声明具名回调并作为参数传入，
+ *         `walk` 实际调用到该函数（断言调用次数与 root 回调）。
+ *
+ * 本文件故意不写任何包内头的 #include：门禁 `g3-ph05` 会检查这一点。
+ * 头包含根由构建参数 `--cflags "-Isrc"` 提供，import 根由 `-I src` 提供；
+ * 这是 D-013 K-3 的已知缺口，不是消费者自己推算包路径。
+ */
+import fsguard::FsGuard;
+import fsguard::FsGuardOps;
+#include <stdio.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+static int total = 0;
+static int failed = 0;
+
+static int cb_calls = 0;
+static int cb_root_seen = 0;
+static int cb_file_seen = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+/* 具名回调：类型来自 `.h.ct` 的 `pub typedef`（R-01 判据 3）。 */
+static int on_entry(char *entry, int is_dir, void *ud)
+{
+    (void)ud;
+    cb_calls = cb_calls + 1;
+    if (strcmp(entry, "/tmp/fsguard_consumer_tree") == 0 && is_dir == 1) {
+        cb_root_seen = 1;
+    }
+    if (strcmp(entry, "/tmp/fsguard_consumer_tree/one.txt") == 0 && is_dir == 0) {
+        cb_file_seen = 1;
+    }
+    return 0;
+}
+
+static int write_fixture(char *path, char *data, int len)
+{
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int n;
+    if (fd < 0) return -1;
+    n = (int)write(fd, data, (size_t)len);
+    close(fd);
+    return n == len ? 0 : -1;
+}
+
+int main(void)
+{
+    char *dir = "/tmp/fsguard_consumer_tree";
+    char *file = "/tmp/fsguard_consumer_tree/one.txt";
+    char *link = "/tmp/fsguard_consumer_tree/../fsguard_consumer_tree/one.txt";
+    char out[64];
+    char small[4];
+    char buf[8];
+    int n;
+    int rc;
+    FsGuard *g;
+    FsError *e;
+
+    unlink(file);
+    rmdir(dir);
+    if (mkdir(dir, 0755) != 0) {
+        printf("not ok 0 fixture: cannot create %s\n", dir);
+        return 1;
+    }
+    if (write_fixture(file, "abcdef", 6) != 0) {
+        printf("not ok 0 fixture: cannot write %s\n", file);
+        rmdir(dir);
+        return 1;
+    }
+
+    /* 判据 2a：normalize_to 成功返回 0，输出与期望逐字相等。 */
+    n = link.normalize_to(out, 64);
+    check(n == 0, "R-01.2: normalize_to returns 0 on success");
+    check(strcmp(out, file) == 0, "R-01.2: normalize_to output is the expected path");
+
+    /* 判据 2b：容量不足返回 -1 且 out[0] == 0。 */
+    small[0] = 'x';
+    n = file.normalize_to(small, 4);
+    check(n == -1, "R-01.2: normalize_to rejects a short buffer");
+    check(small[0] == 0, "R-01.2: short buffer is left empty");
+
+    /* 判据 2c：is_under 段边界。 */
+    n = file.is_under(dir);
+    check(n == 1, "R-01.2: is_under accepts a child path");
+    n = file.is_under("/tmp/fsguard_consumer_tre");
+    check(n == 0, "R-01.2: is_under rejects a prefix that is not a segment");
+
+    /* 判据 2d：read_chunk offset/len 与二进制内容。 */
+    n = file.read_chunk(2, buf, 3);
+    check(n == 3, "R-01.2: read_chunk returns the requested byte count");
+    check(memcmp(buf, "cde", 3) == 0, "R-01.2: read_chunk reads at the offset");
+
+    /* 判据 2e / 判据 3：walk 调用具名回调，root 与文件都被看到。 */
+    rc = dir.walk(on_entry, 0, 4);
+    check(rc == 0, "R-01.2: walk returns 0");
+    check(cb_calls >= 2, "R-01.3: named callback was invoked");
+    check(cb_root_seen == 1, "R-01.3: root callback sees is_dir == 1");
+    check(cb_file_seen == 1, "R-01.3: file callback sees is_dir == 0");
+
+    /* 判据 2f：包的两半在同一次构建里都可用（.h.ct 的 FsGuard + .m.ct 的方法）。 */
+    g = fsguard::fsguard_new(dir);
+    check(g != 0, "R-01.2: fsguard_new returns an object");
+    if (g != 0) {
+        rc = g->check(file);
+        check(rc == FS_OK, "R-01.2: check accepts a path under root");
+        rc = g->check("/etc/passwd");
+        check(rc == FS_ERR_OUT_OF_BOUNDS, "R-01.2: check rejects a path outside root");
+        e = g->last_error();
+        check(e != 0 && e->code == FS_ERR_OUT_OF_BOUNDS,
+              "R-01.2: last_error reports the same code");
+        delete g;
+    }
+
+    unlink(file);
+    rmdir(dir);
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}
