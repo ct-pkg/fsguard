@@ -1,6 +1,6 @@
 # fsguard 判据命令块（R-01…R-17）
 
-> 现状：PH-01 的 R-02、R-05、R-06、R-09 已实现，命令可直接执行；其余条目仍是未实现相的占位，命令行沿用 `ct run` 只是目标态写法（ct 0.44.1 没有 `run` 子命令），轮到所属 phase 时统一改成 `ct build … -I src --cflags "-Isrc" -o /tmp/rNN && /tmp/rNN`。`bash tools/check.sh g1-command` 只做结构校验（每条 R 有 `$ ` 命令 + `rc=`），行为由 `g3-ph01` 执行。
+> 现状：PH-01…PH-05 的实现与门禁已就位，下面每条命令都直接指向现行 `tools/check.sh` 子命令；`ct run` 已不存在，不要照旧写法执行。`bash tools/check.sh g1-command` 只做结构校验（每条 R 有 `$ ` 命令 + `rc=`），行为由对应的 `g3-ph*` 执行。
 
 ## R-01 包形态与文件分工
 
@@ -8,7 +8,9 @@
 $ bash tools/check.sh g3-ph04 all
 # rc=0
 # 判据 1/4：包内无 `pub trait … for char *`，.h.ct/.m.ct 无 #define。
-# 判据 2/3（消费者测试）待建夹具：`ns-root` 已定根、`publisher` 已提交（打包 1.1）；不手写 import 根，实际 build + 运行后接门禁。
+$ bash tools/check.sh g3-ph05 consumer
+# rc=0
+# 判据 2/3：消费者只 import 本包单元，四方法 + FsWalkCb 实际调用并断言。
 ```
 
 ## R-02 错误码枚举
@@ -16,16 +18,18 @@ $ bash tools/check.sh g3-ph04 all
 ```console
 $ bash tools/check.sh g3-ph01 r02
 # rc=0
-# 限定名 FsErrCode::FS_ERR_* 挂起（后半）：等 CT 支持 Type::Member。
+# 裸名与限定名 FsErrCode::FS_ERR_* 分别取值并断言（ct v0.62.0）。
 ```
 
 ## R-03 命名共存
 
 ```console
+$ bash tools/check.sh g3-ph04 r03
+# rc=0
+# 判据 1/2：r03_coexist；判据 3：r03_qualified + r03_ambiguous（未限定必须歧义）。
 $ bash tools/check.sh g3-ph04 all
 # rc=0
-# 判据 4（四名与 std 22 名交集为空）已核对；
-# 判据 1/2/3 挂起（后半）：依赖共享库机制落地后才转门禁，期间保持未实施。
+# 判据 4：四名与 std 22 名交集为空。
 ```
 
 ## R-04 分块读
@@ -52,7 +56,7 @@ $ bash tools/check.sh g3-ph01 r06
 ## R-07 遍历与深度
 
 ```console
-$ ct run test/fsguard/r07_walk.ct
+$ bash tools/check.sh g3-ph03 r07
 # rc=0
 ```
 
@@ -73,7 +77,7 @@ $ bash tools/check.sh g3-ph01 r09
 ## R-10 策略配置
 
 ```console
-$ ct run test/fsguard/r10_policy.ct
+$ bash tools/check.sh g3-ph03 r10
 # rc=0
 ```
 
@@ -94,7 +98,7 @@ $ bash tools/check.sh g3-ph02 r12
 ## R-13 FsGuard 遍历
 
 ```console
-$ ct run test/fsguard/r13_guard_walk.ct
+$ bash tools/check.sh g3-ph03 r13
 # rc=0
 ```
 
@@ -132,8 +136,8 @@ $ bash tools/check.sh g7-asan
 # SKIP（无 LSan），rc=0
 # Linux: ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak
 # PASS: g7-leak: Linux ASan+LSan caught the leak
-# 回填 docs/reviews/fsguard-lsan-linux.md 后：bash tools/check.sh g7-lsan-record
-# rc=0
+$ bash tools/check.sh g7-lsan-record
+# rc=0（记录见 docs/reviews/fsguard-lsan-linux.md）
 ```
 
 ## 附：与 std 的语义差异（D-011 / D-014）

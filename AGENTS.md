@@ -263,12 +263,12 @@ AI_ENGINEERING_SPEC=<主规范路径> ...          # 覆盖默认主规范位置
 | --- | --- |
 | 对话清单 | 需求池 / 技术池 / 评审三类常驻对话；phase 对话按 9.3 命名：`[ct-fsguard] P<nn> · <目标一句话>` |
 | 任务-对话映射 | [docs/session-map.md](docs/session-map.md)（当前 3 列，待按 9.5 升到 4 列） |
-| 门禁入口 | `tools/check.sh`（`g0-decisions` / `g1-command` / `g1-phase-card` / `g3-ph01` / `g4-static` / `g5-anchor` / `g6-contract` / `g7-asan` / `g7-leak`） |
+| 门禁入口 | `tools/check.sh`（`g0-decisions` / `g1-command` / `g1-phase-card` / `g3-ph01` / `g3-ph02` / `g3-ph03` / `g3-ph04` / `g3-ph05` / `g4-static` / `g5-anchor` / `g6-contract` / `g7-asan` / `g7-leak` / `g7-lsan-record` / `all`） |
 | 文档 snippet | 未建（`docs/snippets/`，待首个可运行示例） |
-| Issue 台账 | 已建 `issues/`（前缀 `FSG-<n>`）：FSG-01（版本链断裂，`open`） |
-| 决策记录 | 已建 `docs/decisions/`：D-001…D-013（D-013 签字「主控（用户授权 2026-11-16 battle）」） |
-| 版本落点 | `ct.pkg#version`（当前 `0.1.0`；PH-01 的 `version-minor` 为 1） |
-| 偏离项 | 1 条：`DEV-001`（版本号一次性补号，见 0.3） |
+| Issue 台账 | 已建 `issues/`（前缀 `FSG-<n>`）：FSG-01（版本链断裂，`fixed`）、FSG-02（`ct install` 不识别 `.m.ct`，上游 `open`）、FSG-03（R-17 LSan 环境缺口，`fixed`，PH-05 已回填 Linux 记录）、FSG-04（规范 pin 1.10.0 落后主规范 1.15.0，跨切面 `open`） |
+| 决策记录 | 已建 `docs/decisions/`：D-001…D-016（D-013…D-016 签字「主控（用户授权 2026-11-16 battle）」；D-011 的依赖部分由 D-014 取代） |
+| 版本落点 | `ct.pkg#version`（当前 `0.5.0`；PH-05 的 `version-minor` 为 5，已收口） |
+| 偏离项 | 1 条：`DEV-001`（版本号一次性补号，已收敛；见 0.3） |
 
 ### 0.2 话术路由
 
