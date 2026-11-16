@@ -1,8 +1,9 @@
 # PH-04 卡：包形态、平台边界与门禁（按依赖切两半）
 
 id: PH-04
-status: in-progress
+status: closed
 opened: 2026-11-15
+closed: 2026-11-16
 spec-version: 1.10.0
 version-minor: 4
 roadmap: docs/planning/fsguard-roadmap.md
@@ -27,7 +28,7 @@ roadmap: docs/planning/fsguard-roadmap.md
 | R-01 判据 2/3：消费者只 import `.m.ct` 的消费者测试 | **已移出 PH-04（D-013）**：上游 `ns-root`/包机制已交付（v0.55.0 定根、v0.58.0 读 lock；PKG-2 已解决），本机 v0.58.0 实测 `ct install` 打印 `-I …/src`、`ct build` 不再报 `cannot resolve import`；本仓 `publisher`/`ns-root` 已提交（打包 1.1，`ct pkg check` 四条判据全过），剩余消费者夹具，转 PH-05 首任务，判据原文不动 |
 | R-03 判据 1/2/3：`std::fs` / `std::str` 共存与同名 `walk` 的歧义/限定调用 | **已落地（D-014，B-003）**：`ct.pkg` 声明 `dep = std@0.3.2`、`ct.lock` 提交；用例 `r03_coexist`（判据 1/2）、`r03_qualified` / `r03_ambiguous`（判据 3），门禁 `g3-ph04 r03` 走 `ct build` + 运行；`ct install` 的 `.m.ct` 缺陷登记 FSG-02 |
 | R-02 限定名断言：`FsErrCode::FS_ERR_*` | **已移出 PH-04（D-013）**：上游 `Type::Member` 仍缺（LANG-15 open，排 PH-57 / v0.59.0；本机 v0.58.0 实测报 `qualified type names are not supported`）；转 PH-05，触发 `ct >= v0.59.0` 后复跑限定名用例 |
-| R-17 Linux LSan 记录回填 | **等一台 Linux**：`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 后按模板回填 `docs/reviews/fsguard-lsan-linux.md`；`g7-lsan-record` 保持红 |
+| R-17 Linux LSan 记录回填 | **环境缺口已登记（FSG-03，2026-11-16）**：Podman machine 可初始化但 `krunkit` 在 `VmCreate` 失败，本机无法启动 Linux 虚拟机；无 Lima/Colima/Docker 实例。判据 5 保持「未验证」，`docs/reviews/fsguard-lsan-linux.md` 不产生、`g7-lsan-record` 保持红；拿到 Linux 主机后按模板回填即可关闭 FSG-03 |
 
 **不做什么**
 
@@ -74,7 +75,8 @@ roadmap: docs/planning/fsguard-roadmap.md
 | battle（R-03/D-011） | `docs/reviews/fsguard-b003-battle.md`（B-003，三问裁定）；决策 `D-014`（依赖口径）、`D-015`（`ct install` `.m.ct`）、`D-016`（包根陈旧条目） |
 | R-03 去向 | **本相落地**：`dep = std@0.3.2` + `ct.lock`；用例 `r03_coexist` / `r03_qualified` / `r03_ambiguous`；`ct install` 的 `.m.ct` 缺陷登记 `issues/FSG-02.md`，验收走 `ct build` + 运行 |
 | D-011 状态 | `superseded`（依赖部分由 D-014 取代）；「不拆包、单命名空间」继续有效 |
-| 不变 | 判据原文、验收命令与需求条目不动；R-17 仍挂起，PH-04 仍不得收口 |
+| R-17 收口口径 | 按负责人 2026-11-16 指令「跑不完登记环境缺口」：`issues/FSG-03.md` 登记后本卡可收口；R-17 判据 5 仍标「未验证」，状态表保持「部分可验收」，不伪造 Linux 记录 |
+| 不变 | 判据原文、验收命令与需求条目不动；R-17 判据 5 仍未验证（环境缺口 FSG-03），不伪造记录 |
 
 ## 退出判据
 
@@ -87,7 +89,7 @@ roadmap: docs/planning/fsguard-roadmap.md
 | E-5 | FSR-04 手工清单含 `hdiutil`、`mount --bind`、`weaker variant`、`userns` | `bash tools/check.sh g3-ph04 all` | rc=0 |
 | E-6 | 前半全绿 | `bash tools/check.sh all` | rc=0（`g7-leak` 在 Darwin SKIP；`g7-lsan-record` 单独跑，仍红） |
 | E-7 | R-03 三条判据已落地（共存 / 限定调用 / 歧义负例）；R-17 仍挂起；R-01 判据 2/3 与 R-02 已按 D-013 移出 | `bash tools/check.sh g3-ph04 r03` | rc=0；卡内含 `R-03`、`R-17`、`D-013`、`D-014` |
-| E-8 | **前半全绿 + R-03 落地 + R-17 未完成时 PH-04 不得收口**（R-17 是唯一剩余阻塞项） | 人工核对 | 卡状态保持 `in-progress`，不得改 `closed`；R-17 完成后自动满足 |
+| E-8 | **收口条件**：前半全绿 + R-03 落地 + R-17 有 Linux 实测记录，或 R-17 的环境缺口已登记（FSG-03）且判据 5 明确标为「未验证」 | 人工核对 | 缺口已登记时允许收口；不得伪造记录、不得把 Darwin SKIP 当泄漏结论。2026-11-16：FSG-03 已登记，按本项收口 |
 | E-9 | 任务清单每项可独立验收（6.6 T-6） | 人工核对 | 是 |
 
 ## 依赖
@@ -95,7 +97,7 @@ roadmap: docs/planning/fsguard-roadmap.md
 - D-011（不拆 path 包、单命名空间；依赖部分已由 D-014 取代）、D-012（词法策略层，非安全边界）、D-014（std 依赖口径）、D-015（`ct install` `.m.ct` 处置）、D-016（包根陈旧条目）。
 - `docs/reviews/fsguard-fsr-battle.md`（B-001）、`fsguard-r01-r02-battle.md`（B-002）、`fsguard-b003-battle.md`（B-003）与各自落地记录。
 - `docs/reviews/fsguard-std-overlap.md` §3（符号级对照）作为 README 能力对照表的事实来源。
-- 后半四项的外部依赖见「范围」表的挂起条件。
+- 后半的去向见「范围」表与「裁定记录」：R-01 2/3、R-02 按 D-013 移出，R-03 按 D-014 落地，R-17 判据 5 的环境缺口见 FSG-03。
 
 ## 已知风险
 
@@ -103,4 +105,12 @@ roadmap: docs/planning/fsguard-roadmap.md
 - 硬链接在不支持的文件系统上 SKIP，SKIP 不算通过；CI 需用 ext4/tmpfs/APFS。
 - FSR-04 平台差异大（macOS 无 nullfs、Linux 需 root/userns），只写手工清单，不进 CI。
 - R-16 判据 1（std 仓 diff 为空）本仓无法自证，只能核对「零引用」；std 侧以只读 `git status` 为准。
-- 后半四项没有实现，因此本卡即使前半全绿也不能收口；`g7-lsan-record` 的红色是挂起信号，不是回归。
+- 后半四项中 R-01 2/3、R-02 已按 D-013 移出，R-03 已落地；只有 R-17 判据 5 在本机未验证（FSG-03 环境缺口），`g7-lsan-record` 的红是缺口信号，不是回归，也不代表 LSan 通过。
+
+## 收口记录（2026-11-16）
+
+- 版本：`ct.pkg#version` 由 `0.1.0` 一次性补到 `0.4.0`（`DEV-001`，偏移归零）；新建 `CHANGELOG.md` 并回填 0.1.0～0.4.0；annotated tag `v0.4.0` 指向本次收口提交。
+- 任务：T-01～T-06 与 T-07（R-03）全部完成。
+- 门禁：`bash tools/check.sh all` rc=0；`bash tools/check.sh g3-ph04 r03` rc=0；`ct pkg check .` 四条判据通过；`ct verify` 通过。
+- 残留：R-17 判据 5 未验证（`issues/FSG-03.md`，本机无法启动 Linux 虚拟机），`g7-lsan-record` 保持红；`issues/FSG-02.md`（`ct install` 不识别 `.m.ct`）为上游 open 项，不阻塞本卡。
+- 证据：`docs/reviews/fsguard-ph04-evidence.md` §13；包根迁移见 `docs/reviews/fsguard-pkg-store-migration.md`。

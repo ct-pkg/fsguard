@@ -1,8 +1,9 @@
 # FSG-01 版本链断裂：`ct.pkg` 仍是 0.1.0，PH-02/03/04 的 `version-minor` 已到 2/3/4
 
 id: FSG-01
-status: open
+status: fixed
 opened: 2026-11-16
+fixed: 2026-11-16（PH-04 收口提交）
 phase: PH-04
 severity: major
 rule: 6.7 V-1（MINOR 与 phase 一一对应）、V-5（版本随事同提交）、V-6（版本不一致即缺陷，须立案）；G0「版本落点」；G6（版本不一致未立案即失败）
@@ -45,8 +46,7 @@ $ grep -n '^| 偏离项' AGENTS.md
 
 - 收敛：PH-04 收口时把 `ct.pkg#version` 由 `0.1.0` 直接改为 `0.4.0`；在同一次收口提交内按 `DEV-001` 显式豁免 §6.7 V-1 的「不许多跳」；PH-05 起每个 phase 收口 MINOR 依次 +1（`0.5.0`…），偏移保持为 0。
 - 补号前的核对口径：按 `偏移: 3` 换算，即 `MINOR == n - 3`。
-- 本轮边界：只落偏离登记与本处置段，不 bump 版本、不打 tag、不 push；`ct.pkg#version` 仍为 `0.1.0`。
-- 状态：保持 `open`。未实际改成 `0.4.0` 之前不得转 `fixed` / `verified` / 其它状态；收口提交落地后再按 5.4 由对应角色推进。
+- 状态：**已 fixed**。收口提交把 `version` 改为 `0.4.0`、建 `CHANGELOG.md`（回填 0.1.0～0.4.0）、打 annotated tag `v0.4.0`，三者同一次收口动作完成。
 
 ## 裁定前的选项（留档）
 

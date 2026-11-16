@@ -308,3 +308,26 @@ g6 的新负例：删掉 `ct.lock` 的 `std/std` 行 → g0 报 `D-014` 红；�
 - `ct install` 在只 import `.m.ct` 的消费者上报 `ctc: 'main.ct' cannot resolve import 'std/fs/Fs'`，
   rc=1；同一工程 `ct build` + 运行 rc=0。上游锚点 `Pkg.h.ct:1609-1618`（漏 `%s.m.ct`）。
   登记 `issues/FSG-02.md`，按 D-015 不阻塞 R-03 验收。
+
+### 13.6 R-17 判据 5 的环境缺口（FSG-03）
+
+Podman 6.2.0 能下载并初始化 machine，但本机无法启动 Linux 虚拟机：
+
+```console
+$ podman machine list
+NAME                     VM TYPE     CREATED         LAST UP     CPUS   MEMORY   DISK SIZE
+podman-machine-default*  libkrun     42 minutes ago  Never       2      2GiB     20GiB
+$ podman machine start
+Starting machine "podman-machine-default"
+Error: krunkit exited unexpectedly with exit code 1
+$ /opt/homebrew/bin/krunkit --cpus 1 --memory 512 --bootloader efi,... --device virtio-blk,path=.../podman-machine-default-arm64.raw --device virtio-rng --restful-uri tcp://localhost:64133
+[2026-11-16T06:30:04.089927Z ERROR krun] Building the microVM failed: Internal(Vm(VmSetup(VmCreate)))
+Error: unable to begin running krun workload
+$ limactl list
+level=warning msg="No instance found. Run `limactl create` to create an instance."
+$ bash tools/check.sh g7-lsan-record
+FAIL: G7:LSAN-RECORD missing docs/reviews/fsguard-lsan-linux.md
+```
+
+结论：R-17 判据 5 在本机**未验证**，按负责人「跑不完登记环境缺口」的口径登记
+`issues/FSG-03.md`；`g7-lsan-record` 保持红，不伪造 Linux 记录。拿到 Linux 主机后回填即可关闭。
