@@ -12,7 +12,7 @@
 | R-02 判据 2 | `r02_errors.ct` 补 11 条限定名断言，`g3-ph01 r02` 22 checks |
 | R-17 判据 5 | Linux（Debian 12 / aarch64 / gcc 12.2.0）`g7-leak` PASS，`g7-lsan-record` rc=0 |
 | 规划断尾 | `docs/phases/PH-05/card.md`、roadmap、AGENTS 0.1、验收命令、打包计划同步 |
-| 版本 | `0.5.0`；annotated tag `v0.5.0` 指向 `faada49`；分支与 tag 的远端推送待用户指令 |
+| 版本 | `0.5.0`；annotated tag `v0.5.0`（`1457c86`）指向 `faada49`；`main` 与 tag 已推送 |
 
 ## 2 教训与落点
 
@@ -40,6 +40,6 @@
 
 ## 5 残留风险
 
-- `v0.5.0` 与 `main` 尚未推送；V-7 的「收口提交可在远端追溯」不满足，因此没有 `git push`。分支推送与 tag 推送须用户显式指令。
+- 已按用户 2026-11-17 的「继续推进直到全部完成扫尾」指令推送：`main` → `212318e`，`v0.5.0` annotated tag `1457c86` → `faada49`；V-7 四项校验（tag 名、annotated、指向收口提交、远端可追溯）全过。
 - 项目按 1.15.0 的 §9.8 目录边界执行；本次取证使用 `/tmp` 与规范来源只读项，未写其他项目工作树。
 - `docs/session-map.md` 的四列是计划路由，实际执行在 lead 单会话内完成；若后续拆出独立 phase 对话，按 9.3 改名并补 `reason` 列。
