@@ -63,6 +63,9 @@ if (!seen && snprintf(cand, sizeof cand, "%s.ct", rel) < (int)sizeof cand
 
 ## 处置
 
+- 2026-11-17 在 `ct v0.62.0` 上复现：消费者 `import std::fs::Fs;` + `dep = std@0.3.2`，
+  `ct install` 仍报 `ctc: 'main.ct' cannot resolve import 'std/fs/Fs'`，rc=1；`ct build` + 运行正常。
+  上游缺陷未修，本条保持 `open`。
 - 本仓：D-015 已裁「门禁用 `ct build` 验收、install 红单独登记」；本条只做跟踪。
 - 上游：建议在 `Pkg.h.ct` 的 import 校验中补 `%s.m.ct` 分支（与 `.h.ct` 同级）。
 - 关闭条件：上游修复并发布后，在 `.m.ct` 消费者上 `ct install` rc=0；届时本条转 `fixed`，可把 install 冒烟作为附加证据加回门禁（主验收仍是 build + 运行）。
