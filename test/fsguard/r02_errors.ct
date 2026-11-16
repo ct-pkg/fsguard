@@ -3,8 +3,9 @@
  *
  * $ bash tools/check.sh g3-ph01 r02
  *
- * 本相只验本机可表达的部分：成员存在、数值正确、裸名可用。
- * 限定名 FsErrCode::FS_ERR_* 在 ct 0.44.1 不可表达（卡 H-2），不在此断言。
+ * 本相验：成员存在、数值正确、裸名可用，以及限定名 FsErrCode::FS_ERR_*
+ * 与裸名分别取值并相等。限定名在 ct v0.62.0 已可用（D-013 的触发条件
+ * `ct >= v0.59.0` 已满足；PH-05 T-02 补断言）。
  */
 import fsguard::FsGuard;
 #include <stdio.h>
@@ -37,6 +38,19 @@ int main(void)
     check(FS_ERR_OOM == 9, "FS_ERR_OOM == 9");
 
     check(FS_OK != FS_ERR_IO, "members are distinct constants");
+
+    /* R-02 判据 2：限定名与裸名分别取值，且逐项相等。 */
+    check(FsErrCode::FS_OK == 0, "qualified FS_OK == 0");
+    check(FsErrCode::FS_ERR_NOT_FOUND == 1, "qualified FS_ERR_NOT_FOUND == 1");
+    check(FsErrCode::FS_ERR_PERMISSION == 2, "qualified FS_ERR_PERMISSION == 2");
+    check(FsErrCode::FS_ERR_OUT_OF_BOUNDS == 3, "qualified FS_ERR_OUT_OF_BOUNDS == 3");
+    check(FsErrCode::FS_ERR_DENIED_PATTERN == 4, "qualified FS_ERR_DENIED_PATTERN == 4");
+    check(FsErrCode::FS_ERR_IS_DIR == 5, "qualified FS_ERR_IS_DIR == 5");
+    check(FsErrCode::FS_ERR_NOT_DIR == 6, "qualified FS_ERR_NOT_DIR == 6");
+    check(FsErrCode::FS_ERR_BUFFER_TOO_SMALL == 7, "qualified FS_ERR_BUFFER_TOO_SMALL == 7");
+    check(FsErrCode::FS_ERR_IO == 8, "qualified FS_ERR_IO == 8");
+    check(FsErrCode::FS_ERR_OOM == 9, "qualified FS_ERR_OOM == 9");
+    check(FsErrCode::FS_ERR_IO == FS_ERR_IO, "bare and qualified names agree");
 
     if (failed == 0) {
         printf("all checks passed\n");
