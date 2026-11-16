@@ -1,0 +1,19 @@
+/*
+ * R-03 判据 3 的负例夹具：第二个把 `walk` 映射到 `char *` 的 trait。
+ *
+ * 只用于证明「同名方法未限定调用必须歧义、限定调用必须可用」；
+ * 不是本包能力的一部分，不被 `src/` 引用。
+ */
+import fsguard::FsGuard;
+
+namespace r03aux;
+
+#include "r03aux/AltWalk.shim.h"
+
+pub trait AltWalk {
+    int walk(FsWalkCb cb, void *ud, int max_depth);
+}
+
+map trait AltWalk for type char * {
+    walk(s, cb, ud, depth) -> r03_alt_walk(s, cb, ud, depth);
+}

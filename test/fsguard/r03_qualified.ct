@@ -1,0 +1,57 @@
+/*
+ * R-03 判据 3（正例）：与 `r03aux::AltWalk` 同时可见时，`walk` 必须用
+ * 限定调用 `FsGuardOps::walk(path, cb, ud, 0)`，且必须编译并运行成功。
+ *
+ * $ bash tools/check.sh g3-ph04 r03
+ */
+import fsguard::FsGuard;
+import fsguard::FsGuardOps;
+import r03aux::AltWalk;
+#include <stdio.h>
+
+static int total = 0;
+static int failed = 0;
+static int seen = 0;
+
+static int on_entry(char *entry, int is_dir, void *ud)
+{
+    (void)ud;
+    if (entry == NULL) return -1;
+    (void)is_dir;
+    seen = seen + 1;
+    if (seen > 64) return 1;
+    return 0;
+}
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+int main(void)
+{
+    char *root = "/tmp";
+    int rc;
+
+    rc = FsGuardOps::walk(root, on_entry, 0, 0);
+    check(rc == 0 && seen == 1,
+          "R-03.3: qualified FsGuardOps::walk() compiles and runs (root only at depth 0)");
+
+    seen = 0;
+    rc = r03aux::AltWalk::walk(root, on_entry, 0, 0);
+    check(rc == 0 && seen == 0,
+          "R-03.3: the second walk trait is still reachable by its own qualifier");
+
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}

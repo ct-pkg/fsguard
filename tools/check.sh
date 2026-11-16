@@ -22,15 +22,22 @@ g0_decisions() {
   [ -f docs/decisions/D-003.md ] || fail "G0: missing docs/decisions/D-003.md"
   [ -f docs/decisions/D-004.md ] || fail "G0: missing docs/decisions/D-004.md"
   [ -f docs/decisions/D-005.md ] || fail "G0: missing docs/decisions/D-005.md"
-  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md docs/decisions/D-006.md docs/decisions/D-007.md docs/decisions/D-008.md docs/decisions/D-009.md docs/decisions/D-010.md docs/decisions/D-011.md docs/decisions/D-012.md; do
+  for f in docs/decisions/D-001.md docs/decisions/D-002.md docs/decisions/D-003.md docs/decisions/D-004.md docs/decisions/D-005.md docs/decisions/D-006.md docs/decisions/D-007.md docs/decisions/D-008.md docs/decisions/D-009.md docs/decisions/D-010.md docs/decisions/D-011.md docs/decisions/D-012.md docs/decisions/D-013.md docs/decisions/D-014.md docs/decisions/D-015.md docs/decisions/D-016.md; do
     [ -f "$f" ] || fail "G0: missing $f"
     for field in id date anchor status trigger verdict judge seats scope criteria rationale invalidation affected; do
       grep -q "^${field}:" "$f" || fail "G0: $f missing field: $field"
     done
   done
-  # D-011：fsguard 不把 std 变成硬依赖，且仍是单包单命名空间。
-  if grep -v '^#' ct.pkg | grep -q '^dep = std'; then
-    fail "G0: D-011 forbids a hard std dependency in ct.pkg"
+  # D-011 的依赖部分已由 D-014 取代；索引与正文都要标明，避免读者按旧结论行动。
+  grep -q 'superseded' docs/decisions/D-011.md || fail "G0: D-011 must be marked superseded by D-014"
+  grep -q 'D-014' docs/decisions/D-011.md || fail "G0: D-011 must point at D-014"
+  grep -q 'D-014' docs/decisions/README.md || fail "G0: decisions index must assign D-014"
+  # D-014：声明了 std 依赖，就必须能解析并记入 ct.lock（版本一致）。不要求「必须有依赖」。
+  depver="$(grep -E '^dep = std@' ct.pkg | head -1 | sed 's/^dep = std@//')"
+  if [ -n "$depver" ]; then
+    [ -f ct.lock ] || fail "G0: D-014 ct.pkg declares dep = std@$depver but ct.lock is missing"
+    grep -q "^std/std $depver " ct.lock \
+      || fail "G0: D-014 ct.lock has no 'std/std $depver' line for the declared dep (dead declaration)"
   fi
   [ "z$(find src -mindepth 1 -maxdepth 1 -type d | sort | tr '\n' ' ')" = "zsrc/fsguard " ] \
     || fail "G0: D-011 keeps one namespace dir under src (got: $(find src -mindepth 1 -maxdepth 1 -type d | tr '\n' ' '))"
@@ -50,7 +57,7 @@ g0_decisions() {
     || fail "G0: status table must reference D-012"
   grep -q 'D-012' docs/decisions/README.md \
     || fail "G0: decisions index must assign D-012"
-  pass "g0-decisions: V-001 + D-001…D-012 have all 13 fields; no std dep; single namespace; std differences documented; sandbox claim closed"
+  pass "g0-decisions: V-001 + D-001…D-016 have all 13 fields; D-011 superseded by D-014; declared std dep is locked; single namespace; std differences documented; sandbox claim closed"
 }
 
 g1_command() {
@@ -257,10 +264,11 @@ g3_ph04() {
   [ -x "$CT" ] || fail "G3: ct not found at $CT (set CT=/path/to/ct)"
   sel="${1:-all}"
   case "$sel" in
+    r03) tests="r03_coexist r03_qualified" ;;
     r15) tests="r15_posix" ;;
     r18) tests="r18_known_bypass" ;;
-    all) tests="r15_posix r18_known_bypass" ;;
-    *) echo "usage: $0 g3-ph04 {r15|r18|all}"; exit 2 ;;
+    all) tests="r03_coexist r03_qualified r15_posix r18_known_bypass" ;;
+    *) echo "usage: $0 g3-ph04 {r03|r15|r18|all}"; exit 2 ;;
   esac
   if [ "$sel" = all ]; then
     # R-01 判据 1/4（包形态）：pub trait 不带宿主、.h.ct/.m.ct 无 #define。
@@ -282,13 +290,23 @@ g3_ph04() {
       | grep -oE '[A-Za-z_][A-Za-z0-9_]*\(' | tr -d '(' | sort | tr '\n' ' ')"
     [ "z$names" = "zis_under normalize_to read_chunk walk " ] \
       || fail "G3:R-16 trait method set changed (got: $names)"
-    # R-03：依赖共享库机制，期间未实施；只核对标注，不伪造歧义用例。
-    f=docs/phases/PH-04/card.md
-    for t in '依赖共享库机制落地后才转门禁，期间保持未实施' 'ns-root' 'Type::Member' '一台 Linux' 'PH-04 不得收口'; do
-      grep -q "$t" "$f" || fail "G3:R-03 missing suspension marker in card: $t"
+    # R-03 判据 4：本包 char * 方法名集合与 std@0.3.2 的 char * 方法名交集为空。
+    # 名单冻结到 ct.lock 里的 std@0.3.2（7 fs + 14 str + 1 io = 22 个）；std 升级时同步更新并复跑 r03。
+    stdnames="exists read_file write_file list mkdir remove rename open len find find_char starts_with ends_with copy slice concat to_lower to_upper compare copy_to to_int to_double"
+    for n in $names; do
+      case " $stdnames " in
+        *" $n "*) fail "G3:R-03 method name collides with std@0.3.2: $n" ;;
+      esac
     done
-    grep -q '依赖共享库机制落地后才转门禁，期间保持未实施' docs/acceptance/fsguard-status.md \
-      || fail "G3:R-03 missing the deferred-by-shared-library marker in status"
+    # R-03 判据 1/2/3 由 r03_coexist / r03_qualified / r03_ambiguous 三个用例覆盖；
+    # 卡面只保留可追溯的决策锚点（D-013 的去向、D-014 的依赖口径）。
+    f=docs/phases/PH-04/card.md
+    [ -f "$f" ] || fail "G3: missing $f"
+    for t in 'R-03' 'R-17' 'D-013' 'D-014'; do
+      grep -q "$t" "$f" || fail "G3:R-03 missing traceable anchor in card: $t"
+    done
+    grep -q 'R-03' docs/acceptance/fsguard-status.md \
+      || fail "G3:R-03 missing disposition in status table"
     # FSR-04：手工清单仍是唯一出口。
     f=docs/acceptance/fsguard-manual-checks.md
     [ -f "$f" ] || fail "G3:FSR-04 missing $f"
@@ -296,10 +314,28 @@ g3_ph04() {
       grep -q "$t" "$f" || fail "G3:FSR-04 manual checklist missing: $t"
     done
   fi
+  # R-03 判据 3 负例：同名 walk 的未限定调用必须编译失败（歧义）。
+  if [ "$sel" = all ] || [ "$sel" = r03 ]; then
+    amb="test/fsguard/r03_ambiguous.ct"
+    [ -f "$amb" ] || fail "G3:R-03 missing $amb"
+    if "$CT" build "$amb" -I src -I test/fsguard --cflags "-Isrc -Itest/fsguard" \
+        -o "$TMP/r03_ambiguous" >"$TMP/r03_ambiguous.build" 2>&1; then
+      cat "$TMP/r03_ambiguous.build"
+      fail "G3:R-03 unqualified walk() compiled; expected an ambiguity error"
+    fi
+    grep -qi 'ambiguous' "$TMP/r03_ambiguous.build" \
+      || { cat "$TMP/r03_ambiguous.build"; fail "G3:R-03 build failed, but not for an ambiguous method"; }
+    echo "ok r03_ambiguous: unqualified walk() rejected as ambiguous"
+  fi
   for name in $tests; do
     src="test/fsguard/$name.ct"
     [ -f "$src" ] || fail "G3: missing $src"
-    "$CT" build "$src" -I src --cflags "-Isrc" -o "$TMP/$name" >"$TMP/$name.build" 2>&1
+    inc="-I src"
+    cflags="-Isrc"
+    case "$name" in
+      r03_*) inc="-I src -I test/fsguard"; cflags="-Isrc -Itest/fsguard" ;;
+    esac
+    "$CT" build "$src" $inc --cflags "$cflags" -o "$TMP/$name" >"$TMP/$name.build" 2>&1
     if [ $? -ne 0 ]; then
       cat "$TMP/$name.build"
       fail "G3: build $name failed"
@@ -413,6 +449,23 @@ g6_contract() {
   [ "$rc2" -ne 0 ] || fail "G6: g0-decisions did not fail on broken copy"
   printf '%s\n' "$out2" | grep -q 'G0' || fail "G6: g0 failure missing G0 id"
   printf '%s\n' "$out2" | grep -q 'D-002' || fail "G6: g0 failure missing D-002"
+  # D-014 双向负例：声明了 dep 但 lock 缺行 → 必红；未声明 dep → 不得因此判红。
+  c2="$TMP/contract-dep"
+  mkdir -p "$c2"
+  cp -R docs ct.pkg ct.lock README.md "$c2/"
+  cp -R src "$c2/src"
+  grep -v '^std/std ' "$c2/ct.lock" > "$c2/ct.lock.broken"
+  mv "$c2/ct.lock.broken" "$c2/ct.lock"
+  out3="$(FSGUARD_ROOT="$c2" "$ROOT/tools/check.sh" g0-decisions 2>&1)"
+  rc3=$?
+  [ "$rc3" -ne 0 ] || fail "G6: g0-decisions accepted a dead std declaration (dep without a lock line)"
+  printf '%s\n' "$out3" | grep -q 'D-014' || fail "G6: dead-declaration failure lacks the D-014 id"
+  cp ct.lock "$c2/ct.lock"
+  grep -v '^dep = std@' ct.pkg > "$c2/ct.pkg"
+  out4="$(FSGUARD_ROOT="$c2" "$ROOT/tools/check.sh" g0-decisions 2>&1)"
+  rc4=$?
+  [ "$rc4" -eq 0 ] \
+    || fail "G6: g0-decisions requires a std dep; D-014 is 'declared => locked', not 'must declare': $out4"
   grep -q 'G7:F1' "$ROOT/tools/check.sh" || fail "G6: g7 ASan failure lacks F1 id"
   grep -q 'G7:F2' "$ROOT/tools/check.sh" || fail "G6: g7 leak failure lacks F2 id"
   grep -q 'G4: missing' "$ROOT/tools/check.sh" || fail "G6: g4 failure lacks G4 id"
@@ -423,7 +476,7 @@ g6_contract() {
   grep -q 'g7_lsan_record' "$ROOT/tools/check.sh" || fail "G6: g7-lsan-record must stay wired (Darwin SKIP is not an exemption)"
   grep -q "run 'bash tools/check.sh g7-lsan-record'" "$ROOT/tools/check.sh" \
     || fail "G6: all-mode must point at g7-lsan-record so SKIP is never silent"
-  pass "g6-contract: broken copies yield G0/D-002 and G1/R-09; G4/G5/G7 ids present; all-mode continuous; lsan record enforced"
+  pass "g6-contract: broken copies yield G0/D-002 and G1/R-09; D-014 dead declaration red, dependency-free ct.pkg still green; G4/G5/G7 ids present; all-mode continuous; lsan record enforced"
 }
 
 g7_asan() {

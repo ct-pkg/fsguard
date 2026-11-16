@@ -1,0 +1,27 @@
+/*
+ * R-03 判据 3（负例）：与 `r03aux::AltWalk` 同时可见时，未限定调用
+ * `path.walk(...)` 必须编译失败（歧义）。门禁断言「失败且错误里出现
+ * ambiguous」，不是断言它通过。
+ *
+ * $ bash tools/check.sh g3-ph04 r03
+ */
+import fsguard::FsGuard;
+import fsguard::FsGuardOps;
+import r03aux::AltWalk;
+#include <stdio.h>
+
+static int on_entry(char *entry, int is_dir, void *ud)
+{
+    (void)entry;
+    (void)is_dir;
+    (void)ud;
+    return 0;
+}
+
+int main(void)
+{
+    char *root = "/tmp";
+
+    /* 本行必须报歧义：两个 trait 都映射了 `walk`。 */
+    return root.walk(on_entry, 0, 0);
+}

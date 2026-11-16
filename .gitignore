@@ -1,1 +1,3 @@
 .ctbuild/
+# D-014：依赖走 dep + ct.lock（共享包根），vendor/ 是本地临时落盘，不入库
+vendor/

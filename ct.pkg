@@ -14,3 +14,4 @@ ns-root = src
 version = 0.1.0
 licence = MIT
 requires = ct >= 0.44.1
+dep = std@0.3.2

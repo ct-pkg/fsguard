@@ -1,0 +1,92 @@
+/*
+ * R-03 判据 1/2：同文件 import `std::fs::Fs` / `std::str::String` 与本包，
+ * 对同一 `char *` 调用两边的方法并各自 assert（运行，不只看编译）。
+ *
+ * $ bash tools/check.sh g3-ph04 r03
+ *
+ * 判据 1：同一接收者上 `exists()`（std::fs）与 `read_chunk(...)`（本包）。
+ * 判据 2：同一接收者上 `len()`（std::str）与 `read_chunk(...)`（本包）。
+ *
+ * 依赖由 `ct.pkg` 的 `dep = std@0.3.2` + `ct.lock` 提供；不 vendor 源码。
+ */
+import fsguard::FsGuardOps;
+import std::fs::Fs;
+import std::str::String;
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+static int total = 0;
+static int failed = 0;
+
+static void check(int cond, char *name)
+{
+    total = total + 1;
+    if (cond) {
+        printf("ok %d %s\n", total, name);
+    } else {
+        failed = failed + 1;
+        printf("not ok %d %s\n", total, name);
+    }
+}
+
+int main(void)
+{
+    char *path = "/tmp/fsguard_r03_coexist.txt";
+    char *content = "hello-std";
+    char buf[64];
+    char out[64];
+    int fd;
+    int n;
+    int e;
+
+    unlink(path);
+    fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        printf("not ok 0 fixture: cannot create %s\n", path);
+        return 1;
+    }
+    n = (int)strlen(content);
+    if (write(fd, content, (size_t)n) != n) {
+        close(fd);
+        printf("not ok 0 fixture: cannot write %s\n", path);
+        return 1;
+    }
+    close(fd);
+
+    /* 判据 1：std::fs::exists 与 fsguard::read_chunk 在同一接收者上并存。 */
+    e = path.exists();
+    check(e == 1, "R-03.1: std::fs exists() on the shared receiver");
+    n = path.read_chunk(0, buf, 9);
+    check(n == 9 && memcmp(buf, "hello-std", 9) == 0,
+          "R-03.1: fsguard read_chunk() on the same receiver");
+    e = path.exists();
+    n = path.read_chunk(2, buf, 4);
+    check(e == 1 && n == 4 && memcmp(buf, "llo-", 4) == 0,
+          "R-03.1: both calls agree in one expression sequence");
+
+    /* 判据 2：std::str::len 与 fsguard::read_chunk 在同一接收者上并存。 */
+    e = path.len();
+    check(e == (int)strlen(path), "R-03.2: std::str len() on the same receiver");
+    n = path.read_chunk(0, buf, 5);
+    check(n == 5 && memcmp(buf, "hello", 5) == 0,
+          "R-03.2: fsguard read_chunk() beside std::str len()");
+
+    /* 附带：std::fs::read_file 与 fsguard 的 normalize_to 同单元可用。 */
+    n = path.read_file(out, 64);
+    check(n == (int)strlen(content) && memcmp(out, content, (size_t)n) == 0,
+          "R-03: std::fs read_file() still works next to fsguard");
+    e = "/tmp/../tmp/fsguard_r03_coexist.txt".normalize_to(out, 64);
+    check(e == 0 && strcmp(out, path) == 0,
+          "R-03: fsguard normalize_to() beside std::fs");
+
+    unlink(path);
+
+    if (failed == 0) {
+        printf("all checks passed\n");
+        return 0;
+    }
+    printf("%d of %d checks failed\n", failed, total);
+    return 1;
+}
