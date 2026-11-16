@@ -26,7 +26,7 @@ ct build -I vendor/std --ldflags '-lm' <unit>.ct -o build
 - `ct get` 会把来源写进 `ct.pkg` 的 `dep`（本地目录形态为 `dep = file:///…`）；`ct install` 只读 `vendor/` 与 `ct.lock`，零网络。
 - `std` 的 `ldflags = -lm` 会被 `ct install` 折进建议命令；`cflags` 未声明。
 
-fsguard 侧本次是**探针式安装**：装进 `ct-fsguard/vendor/std` 跑完对照后移除，`ct.pkg` 不保留 `dep`（理由见 D-011）。复现命令同上。
+fsguard 侧最初是**探针式安装**：装进 `ct-fsguard/vendor/std` 跑完对照后移除，`ct.pkg` 不保留 `dep`（当时的依据是 D-011）。**2026-11-16 起改为正式依赖**（D-014）：`ct.pkg` 声明 `dep = std@0.3.2`、提交 `ct.lock`，`vendor/` 不进版本库；`ct get` 落共享包根，`ct build` 按 lock 自动补包含根。复现命令见 D-014 与 `fsguard-b003-battle.md` §1.3。
 
 ## 2 std 与 fsguard 相关的公开面
 
@@ -65,7 +65,7 @@ std 明确不提供的（`std/fs/README.md` §8、`std/io/README.md` §1）：�
 | 无 | `std::str` 14 个方法 | 不重复 | 字符串工具归 std；fsguard 的 shim 是 C，跨包调用这些 `static inline` 不成立 |
 | 无 | `Vec` / `Map` / `Arena` / `Test` | 不重复 | 容器与测试框架归 std |
 
-**交集为空**：fsguard 占用的 `char *` 方法名是 `normalize_to` / `is_under` / `read_chunk` / `walk`；std 占用 `exists` / `readFile` / `writeFile` / `list` / `open` / `read` / `write` / `close` / `len` / `find` / `findChar` / `startsWith` / `endsWith` / `copy` / `slice` / `concat` / `toLower` / `toUpper` / `compare` / `copyTo` / `toInt` / `toDouble`。同一单元同时 import 两者可以编译并运行（§4）。
+**交集为空**：fsguard 占用的 `char *` 方法名是 `normalize_to` / `is_under` / `read_chunk` / `walk`；std@0.3.2 占用 22 个 `char *` 方法名（7 个 `std::fs` + 14 个 `std::str` + 1 个 `std::io`）：`exists` / `read_file` / `write_file` / `list` / `mkdir` / `remove` / `rename` / `open` / `len` / `find` / `find_char` / `starts_with` / `ends_with` / `copy` / `slice` / `concat` / `to_lower` / `to_upper` / `compare` / `copy_to` / `to_int` / `to_double`。同一单元同时 import 两者可以编译并运行（§4）。
 
 ## 4 共存验证（同一编译单元 import 两个包）
 
@@ -142,6 +142,9 @@ fsg  write-dir=5
 
 ## 7 安装与消费的边界问题（与 std 无关，但由本次安装暴露）
 
+> **2026-11-16 更新**：本节描述的 `src/` 布局缺口已由 `ns-root`（v0.55.0）与 `ct build` 读 lock（v0.58.0）解决，
+> 依赖方式按 D-014 改为 `dep` + `ct.lock`；本节保留为历史现场，不再代表当前行为。
+
 `ct-fsguard` 的源码在 `src/fsguard/`，而 CT 的包约定是「包根下的同名目录即命名空间根」。因此：
 
 ```console
@@ -170,6 +173,8 @@ ctc: cannot resolve import 'fsguard/FsGuard'
 | `walk` | 否 | `list` 单层 + `\n` 拼接；且 walker 在 C shim，调不到 CT 的映射方法 |
 | `fsguard_errno_to_code` | 否 | std 不暴露 errno |
 
-另一个硬约束：硬依赖 std 需要每个消费者与门禁都 `vendor/std`，而 `vendor/std` 不进版本库（主控约束），
-构建会变成非自足；因此 D-011 的「零依赖」同时是工程约束。详细裁定见 `docs/decisions/D-011.md`。
+~~另一个硬约束：硬依赖 std 需要每个消费者与门禁都 `vendor/std`，而 `vendor/std` 不进版本库（主控约束），
+构建会变成非自足；因此 D-011 的「零依赖」同时是工程约束。~~ **该约束已由 D-014 取代**：
+`ct get` 落共享包根、`ct build` 按 `ct.lock` 自动补包含根，`vendor/` 不需要进版本库；
+门禁口径改为「声明了就必须可解析并记入 lock」。详细裁定见 `docs/decisions/D-011.md`（`superseded`）与 `docs/decisions/D-014.md`。
 

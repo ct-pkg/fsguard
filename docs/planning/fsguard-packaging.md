@@ -67,8 +67,9 @@
 3. `ct build` 默认读 lock：lock 为 `# ct-lock 2`，build 自动用 dev override 解析到本仓（**具备**）。
 
 剩余缺口两条，均属本仓或上沿而非「能力未出现」：`ct build` 未把 `ns-root` 传给 C 编译器，
-头包含根要显式 `--cflags "-I<ns-root>"`；`ct install` 仍不校验 import 解析（上游 PKG-6 open），
-rc=0 不能当解析证明。
+头包含根要显式 `--cflags "-I<ns-root>"`；`ct install` 仍不校验 import（上游 PKG-6 open），
+且对只 import `.m.ct` 的消费者会误报 `cannot resolve import`（本仓 `issues/FSG-02.md`，D-015 规定验收走 `ct build`）。
+`rc=0` 不能当解析证明。
 
 ## 2 当前实际状态（待决）
 
@@ -114,6 +115,8 @@ $ git show-ref --tags
 
 - `ct.pkg` 的 `requires` 仍以编译器版本下限表达，没有改成能力前置；不在上述四件事内，未动。
   是否需要改写，等负责人决定。
+- `dep = std@0.3.2` 已按 D-014 提交，`ct.lock` 一并入库；`vendor/` 不进版本库。
+  这是 1.1 之外新增的一条依赖声明，验收口径见 D-014（声明即须可解析并记入 lock）。
 
 ## 3 落地顺序
 

@@ -136,10 +136,12 @@ $ bash tools/check.sh g7-asan
 # rc=0
 ```
 
-## 附：与 std 的语义差异（D-011）
+## 附：与 std 的语义差异（D-011 / D-014）
 
-fsguard 与 `ct-pkg/std` 0.2.0 是兄弟包；fsguard 不依赖 std（`ct.pkg` 零 `dep`），门禁不需要
-`vendor/std`。两者可在同一编译单元共存，`char *` 方法名不冲突。以下差异按 std 实测口径记录，
+fsguard 与 `ct-pkg/std` 是兄弟包。**依赖口径按 D-014**：`ct.pkg` 声明 `dep = std@0.3.2`，
+解析结果记入 `ct.lock`；`vendor/` 不进版本库，构建时包含根由包根提供
+（`~/.ct/pkg/std/std/0.3.2/std/**`）。门禁校验的是「声明了就必须可解析并记入 lock」，
+不要求「必须有 std 依赖」。两者可在同一编译单元共存，`char *` 方法名不冲突。以下差异按 std 实测口径记录，
 **不得当成等价实现互相替换**：
 
 | 项 | `std::fs` / `std::io` | fsguard | 归属 |

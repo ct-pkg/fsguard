@@ -5,7 +5,7 @@
 
 ## 1 结论
 
-**PH-01/PH-02/PH-03 已收口：遍历与策略已落地；PH-04 按依赖切两半。** 需求口径上 17 条中 15 条可验收、2 条部分可验收（R-02/R-17）、0 条不可验收。前半已落 R-15、R-16 与 FSR-02/03/04 证据；后半挂起：R-03 判据 1/2/3（**依赖共享库机制落地后才转门禁，期间保持未实施**）、R-17 Linux 记录（等一台 Linux）。R-01 判据 2/3 与 R-02 限定名按 D-013 移出 PH-04：前者上游已交付，剩余属打包 1.1 + PH-05；后者等 `ct >= v0.59.0`（LANG-15 / PH-57）。前半全绿 + R-03/R-17 仍挂起时 PH-04 不得收口。
+**PH-01/PH-02/PH-03 已收口：遍历与策略已落地；PH-04 按依赖切两半。** 需求口径上 17 条中 15 条可验收、2 条部分可验收（R-02/R-17）、0 条不可验收。前半已落 R-15、R-16 与 FSR-02/03/04 证据；R-03 判据 1/2/3 已按 D-014 落地（`dep = std@0.3.2` + `ct.lock`，用例 `r03_coexist` / `r03_qualified` / `r03_ambiguous`，门禁 `g3-ph04 r03`）。剩余挂起只有 R-17 Linux 记录（等一台 Linux）。R-01 判据 2/3 与 R-02 限定名按 D-013 移出 PH-04：前者上游已交付，剩余属打包 1.1 + PH-05；后者等 `ct >= v0.59.0`（LANG-15 / PH-57）。前半全绿 + R-03 落地 + R-17 未完成时 PH-04 不得收口。
 
 ## 2 威胁模型五处（承接 FSR-02…06）
 
@@ -39,7 +39,7 @@
 | --- | --- | --- |
 | R-01 | 判据 1/4 已实施；判据 2/3 移出（D-013） | 判据 1/4 由 `g3-ph04 all` 核对；判据 2/3 的上游阻塞已解除（PKG-2 已解决：v0.55.0 `ns-root`、v0.58.0 读 lock）；本仓 `publisher`/`ns-root` 已提交（打包 1.1，`ct pkg check` 四条判据全过），剩余消费者夹具，转 PH-05 首任务 |
 | R-02 | 部分（判据 2 移出，D-013） | 10 码与 `NOT_DIR` 已收口（D-009）；**缺项**：限定名 `FsErrCode::*` 在 ct v0.58.0 仍报 `qualified type names are not supported`（LANG-15 open，排 PH-57 / v0.59.0）；按 D-013 转 PH-05，触发 `ct >= v0.59.0` 后复跑 |
-| R-03 | 挂起（后半） | 判据 4（四名与 std 22 名交集为空）已由 `g3-ph04 all` 核对；判据 1/2 的共存形态已在 `docs/reviews/fsguard-std-overlap.md` §4 验证；**判据 3（两个 trait 同名 `walk` 的歧义/限定调用）依赖共享库机制落地后才转门禁，期间保持未实施** |
+| R-03 | 已实施（D-014） | 判据 1/2：`r03_coexist` 在同一 `char *` 上并存 `std::fs` 的 `exists` / `std::str` 的 `len` 与本包 `read_chunk`，7 checks 全绿；判据 3：`r03_qualified` 的 `FsGuardOps::walk` 编译运行，`r03_ambiguous` 的未限定 `walk` 必须报歧义；判据 4 由 `g3-ph04 all` 的 22 名交集核对。依赖走 `dep = std@0.3.2` + `ct.lock`，`vendor/` 不提交；`ct install` 的 `.m.ct` 缺陷见 `issues/FSG-02.md` |
 | R-04 | 可验收 | Q-5 已裁（D-001），负 offset→`FS_ERR_IO` |
 | R-05 | **可验收** | Q-3（D-003）与重叠拒绝（D-008）已裁；`g3-ph01 r05` 绿 |
 | R-06 | **可验收** | Q-6（D-002）与判据 1 示例（D-007）已裁；`g3-ph01 r06` 绿 |
@@ -112,6 +112,6 @@
 
 - 已按 `ct get` / `ct install` 核对 `std` 0.2.0（tag `v0.2.0`，`b04b7d6`）：`std::fs` 只有 `exists` / `readFile` / `writeFile` / `list`，`std::io` 只有 `open` / `read` / `write` / `close`，`std::str` 只有字节级方法；**没有**路径规范化、段边界、递归遍历、offset 读、errno。
 - 符号级对照见 `docs/reviews/fsguard-std-overlap.md`：fsguard 的 12 个公开符号与 std 零重复；`read_file` / `write_file` 同形但不可替代（std 目录读返回 0、失败统一 `-1`、按 `strlen` 写）。按「直接改实现」逐函数复核后**可删 0 行**。
-- 结论（D-011）：不新增 `std` 依赖、不拆 path 包；std 缺失的语义继续由 fsguard 提供；对 std 的建议只记录、不改 std 仓库。硬依赖 std 需要每个消费者与门禁都持有 `vendor/std`，而 `vendor/std` 不进版本库，构建会失去自足性。
+- 结论（D-011 → 依赖部分由 D-014 取代）：不拆 path 包；std 缺失的语义继续由 fsguard 提供；对 std 的建议只记录、不改 std 仓库。**依赖口径按 D-014**：`ct.pkg` 声明 `dep = std@0.3.2` 并提交 `ct.lock`，构建时包含根由共享包根提供，`vendor/` 不进版本库；门禁校验「声明了就必须可解析并记入 lock」。
 - 语义差异同时写进 `README.md` 与 `docs/acceptance/fsguard-commands.md` 的附表，门禁 `g0-decisions` 核对这两处存在。
 - 由安装暴露的包形态缺口：`ct install` 只打印 `-I vendor/<包名>`，而 fsguard 的单元在 `src/fsguard/`，消费者实测报 `cannot resolve import 'fsguard/FsGuard'`；归 **PH-04**。

@@ -2,7 +2,8 @@
 
 > 采集时间：2026-11-16；主机 `uname -srm` = `Darwin 27.2.0 arm64`（macOS 27.2）；`ct v0.58.0`（`~/.local/bin/ct`）。  
 > 采集提交：`8daca1f`（工作区另有未提交的 `ct.pkg` 两行 `publisher`/`ns-root`，本轮未改、未纳入提交；下列命令均不依赖这两行）。  
-> 本文只记录**实际执行**得到的退出码与原始输出；未执行的一律写「未执行」，不以推断代替。
+> 本文只记录**实际执行**得到的退出码与原始输出；未执行的一律写「未执行」，不以推断代替。  
+> **后续更新**：§13 为 2026-11-16 在 `ct v0.62.0` 上补采的 R-03 落地证据（D-014/D-015/D-016）；§1–§12 保留 v0.58.0 时的原始现场。
 
 ## 1 T-01 六处文档口径：`g4-static`
 
@@ -159,8 +160,8 @@ RC=1
 | E-4 | 通过 | §4 `r18` rc=0，3 checks |
 | E-5 | 通过 | §5 `g3-ph04 all` rc=0 |
 | E-6 | 通过 | §6 `ALL_RC=0`；`g7-leak` 在 Darwin SKIP（不记泄漏结论） |
-| E-7 | 通过 | §3/§6：卡内含 `ns-root`、`Type::Member`、`一台 Linux`、`PH-04 不得收口`；`g3-ph04 all` rc=0。判据枚举已由 D-013 收紧为 R-03/R-17 两项，标记词保留 |
-| E-8 | 成立（不收口） | 前半全绿；R-03/R-17 仍挂起（D-013 后口径），`docs/phases/PH-04/card.md` 保持 `status: in-progress` |
+| E-7 | 通过（2026-11-16 更新） | §13：R-03 三条判据已落地（`g3-ph04 r03` rc=0），卡内含 `R-03`、`R-17`、`D-013`、`D-014`；R-17 仍挂起 |
+| E-8 | 由 R-17 单独决定（2026-11-16 更新） | 前半全绿 + R-03 落地；只剩 R-17 的 Linux 记录。未回填前卡保持 `status: in-progress` |
 | E-9 | 成立 | §8 每项任务的验收命令独立，不借整相全绿 |
 
 ## 10 后半处置（D-013 后：两项挂起、两项移出）
@@ -168,7 +169,7 @@ RC=1
 | 项 | 状态 | 阻塞点或去向（可核对） |
 | --- | --- | --- |
 | R-01 判据 2/3 | **已移出（D-013）** | 上游阻塞已解除：PKG-2 已解决（v0.55.0 `ns-root`、v0.58.0 读 lock），本机 v0.58.0 实测 `ct install` 打印 `-I …/src`、`ct build` 不再报 `cannot resolve import`；剩余为本仓 `publisher`/`ns-root` 未提交与消费者夹具，转打包 1.1 + PH-05 首任务 |
-| R-03 判据 1/2/3 | 挂起 | 需共享库机制支持两个 `map trait` 同名方法与 `FsGuardOps::walk(...)` 限定调用；期间 `g3-ph04 all` 只核对卡内标注 |
+| R-03 判据 1/2/3 | **已落地（D-014，2026-11-16）** | `ct.pkg` 声明 `dep = std@0.3.2`、提交 `ct.lock`；用例 `r03_coexist` / `r03_qualified` / `r03_ambiguous` 进 `g3-ph04 r03`；`ct install` 的 `.m.ct` 缺陷登记 `issues/FSG-02.md` |
 | R-02 限定名 | **已移出（D-013）** | 当前 `ct v0.58.0` 仍不支持，见下方探针；上游 LANG-15 open，排 PH-57 / v0.59.0，转 PH-05 并写死触发条件 |
 | R-17 Linux LSan | 挂起 | 无 Linux 主机，`docs/reviews/fsguard-lsan-linux.md` 不存在；`g7-lsan-record` rc=1 |
 
@@ -203,3 +204,107 @@ R-02 一项本轮只复述卡面挂起条件，未做「是否已支持」的新
 - 决策：`docs/decisions/D-013.md`（签字：主控（用户授权 2026-11-16 battle））
 - 卡面：`docs/phases/PH-04/card.md` 的「后半」表与 E-7/E-8 已收紧为 R-03/R-17；去向见卡内「裁定记录」
 - 上游事实：ct-lang `PKG-2` 已解决、`PKG-6` open、`LANG-15` open（PH-57 → v0.59.0）；本机 `ct v0.58.0` 实测见 B-002 §1.2
+
+## 13 R-03 落地与 B-003 三问裁定（2026-11-16，`ct v0.62.0`）
+
+环境：`Darwin 27.2.0 arm64`；`ct v0.62.0`；包根 `~/.ct/pkg`；共享 store 中的 std 为
+`~/.ct/pkg/std/std/0.3.2`（`publisher = std`、`licence = MIT`）。
+
+裁定与记录：`docs/reviews/fsguard-b003-battle.md`（B-003）；`D-014`（取代 D-011 的依赖部分，门禁 = 声明即须可解析并记入 lock）；`D-015`（`ct install` `.m.ct` 缺陷登记，验收走 `ct build`）；`D-016`（包根陈旧条目 `ct/std/0.3.1` 挪到 `~/.ct/pkg-backup/20261116/`）。
+
+### 13.1 先红：只有 `dep` + `ct.lock` 才能解析 std
+
+把仓库复制到 `/tmp/fsg-red`，删掉 `ct.lock` 与 `ct.pkg` 的 `dep` 行后跑同一子门禁：
+
+```console
+$ cd /tmp/fsg-red && bash tools/check.sh g3-ph04 r03
+ok r03_ambiguous: unqualified walk() rejected as ambiguous
+ctc: cannot resolve import 'std/fs/Fs'
+FAIL: G3: build r03_coexist failed
+```
+
+### 13.2 后绿：`g3-ph04 r03`
+
+```console
+$ bash tools/check.sh g3-ph04 r03
+ok r03_ambiguous: unqualified walk() rejected as ambiguous
+ok r03_coexist: 7 checks
+ok r03_qualified: 2 checks
+PASS: g3-ph04: r03 green
+RC=0
+```
+
+逐条断言：
+
+```console
+$ /tmp/r03_coexist
+ok 1 R-03.1: std::fs exists() on the shared receiver
+ok 2 R-03.1: fsguard read_chunk() on the same receiver
+ok 3 R-03.1: both calls agree in one expression sequence
+ok 4 R-03.2: std::str len() on the same receiver
+ok 5 R-03.2: fsguard read_chunk() beside std::str len()
+ok 6 R-03: std::fs read_file() still works next to fsguard
+ok 7 R-03: fsguard normalize_to() beside std::fs
+all checks passed
+$ /tmp/r03_qualified
+ok 1 R-03.3: qualified FsGuardOps::walk() compiles and runs (root only at depth 0)
+ok 2 R-03.3: the second walk trait is still reachable by its own qualifier
+all checks passed
+```
+
+歧义负例的原始报错：
+
+```console
+$ ~/.local/bin/ct build test/fsguard/r03_ambiguous.ct -I src -I test/fsguard --cflags "-Isrc -Itest/fsguard" -o /tmp/r03_ambiguous
+test/fsguard/r03_ambiguous.ct:26:1: error: use 'fsguard_FsGuardOps::walk' or 'r03aux_AltWalk::walk'; ambiguous type-host map for method 'walk' on type 'char *': 'src/fsguard/FsGuardOps.m.ct' and 'test/f...
+```
+
+### 13.3 依赖与 lock
+
+```console
+$ ct get std@0.3.2
+installed 1 package(s)
+$ cat ct.lock
+# ct-lock 2
+std/std 0.3.2 git https://github.com/ct-pkg/std a3f12172e03a9247ef47dec1dca66309d3111ac2 . sha256:95fc010f704d67e8718574d2419fab48063029c0f9e6cd18961f4e423088ce6d
+$ ct install
+ct build --ldflags '-lm' <unit>.ct -o build
+# lock-format: v2
+$ ct verify
+verified 1 package(s)
+$ ct pkg check .
+ok: 4 criteria
+```
+
+`ct build` 的包含根来自共享包根，没有 `vendor/`：
+
+```console
+'cc' -std=c99 -Isrc -I 'src/fsguard' -I '/Users/samxx/.ct/pkg/std/std/0.3.2/std/fs' -I '/Users/samxx/.ct/pkg/std/std/0.3.2/std/str' -I '.ctbuild' ...
+```
+
+### 13.4 门禁
+
+```console
+$ bash tools/check.sh g0-decisions
+PASS: g0-decisions: V-001 + D-001…D-016 have all 13 fields; D-011 superseded by D-014; declared std dep is locked; single namespace; std differences documented; sandbox claim closed
+$ bash tools/check.sh g6-contract
+PASS: g6-contract: broken copies yield G0/D-002 and G1/R-09; D-014 dead declaration red, dependency-free ct.pkg still green; G4/G5/G7 ids present; all-mode continuous; lsan record enforced
+$ bash tools/check.sh g3-ph04 all
+ok r03_ambiguous: unqualified walk() rejected as ambiguous
+ok r03_coexist: 7 checks
+ok r03_qualified: 2 checks
+ok r15_posix: 7 checks
+ok r18_known_bypass: 3 checks
+PASS: g3-ph04: all green
+```
+
+g6 的新负例：删掉 `ct.lock` 的 `std/std` 行 → g0 报 `D-014` 红；删掉 `ct.pkg` 的 `dep` 行、保留 lock → g0 仍绿（证明口径是「声明即须可解析」，不是「必须有依赖」）。
+
+### 13.5 包根迁移与 `ct install` 缺陷
+
+- 陈旧条目：`~/.ct/pkg/ct/std/0.3.1`（`publisher = ct`、GPL）已整体挪到
+  `~/.ct/pkg-backup/20261116/ct/std/0.3.1`，71 个文件；内容摘要 `aae37735…`、归档摘要 `531eacb8…`。
+  详见 `docs/reviews/fsguard-pkg-store-migration.md`。
+- `ct install` 在只 import `.m.ct` 的消费者上报 `ctc: 'main.ct' cannot resolve import 'std/fs/Fs'`，
+  rc=1；同一工程 `ct build` + 运行 rc=0。上游锚点 `Pkg.h.ct:1609-1618`（漏 `%s.m.ct`）。
+  登记 `issues/FSG-02.md`，按 D-015 不阻塞 R-03 验收。
