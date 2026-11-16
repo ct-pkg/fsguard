@@ -1,8 +1,9 @@
 # FSG-04 规范 pin 落后：`AGENTS.md` 是 1.10.0，主规范已是 1.15.0
 
 id: FSG-04
-status: open
+status: fixed
 opened: 2026-11-17
+fixed: 2026-11-17（AGENTS 块与 docs/spec 刷新到 1.15.0）
 phase: cross-cutting
 severity: major
 rule: G9（规范锚定）、11.5 L-1（一版一同步）
@@ -33,9 +34,16 @@ RC=1
   不夹带规范迁移。
 - 不能手改块内字符；必须用 `sync-agents.sh --write` 刷新块与 `docs/spec` 副本。
 
-## 处置
+## 处置（2026-11-17）
 
-- 本条目只登记，不在 PH-05 内实施。
+- 已按 11.5 L-6 执行：用主规范来源的 `sync-agents.sh --write AGENTS.md` 刷新
+  `AGENTS.md` 块与 `docs/spec/ai-coding-workflow.md`，块头为
+  `version=1.15.0 sha256=1619a8c37c46403c0eb7a4f60465747477fbcf4842c3a71c28f542f5d3dd77f9`。
+- `bash /Users/samxx/trae-ws/.ai-engineering/bin/sync-agents.sh --check AGENTS.md` rc=0：
+  `ok docs/spec/ai-coding-workflow.md（全文副本 sha256=1619…）`、`ok AGENTS.md（version=1.15.0）`。
+- 该提交路径集合只含 `AGENTS.md` 与 `docs/spec/ai-coding-workflow.md`，符合 11.5 L-4。
+- 迁移时已核对 1.15.0 的新增条款：§9.8 目录边界、§9.10 跨项目反馈、D0-20 追加式决策；
+  本仓没有新增跨项目写入。
 - 关闭条件：REQ 按 11.5 L-6 的发布流程，用主规范来源的 `sync-agents.sh --write AGENTS.md` 刷新
   `AGENTS.md` 块与 `docs/spec/ai-coding-workflow.md`，`sync-agents.sh --check AGENTS.md` rc=0；
   该提交路径集合只含 `AGENTS.md` 与 `docs/spec/ai-coding-workflow.md`（11.5 L-4）。

@@ -32,6 +32,7 @@
 | H-7 | 已关闭（D-010） | R-11 判据 3 改为可核对条款，不再挂「部分」 |
 | Q-1 / H-3 | 已裁（D-012） | 放弃「沙箱 / 安全边界」主张，只做词法策略层；TOCTOU/硬链接/挂载点/超长路径/符号链接环不在防护范围 |
 | LSan | 已收口（FSG-03，2026-11-17） | R-17 判据 5 已在 Linux 上实测：`host: Linux 6.1.0-54-cloud-arm64 aarch64`，`ASAN_OPTIONS=detect_leaks=1 bash tools/check.sh g7-leak` 输出 `PASS: g7-leak: Linux ASan+LSan caught the leak`；记录回填 `docs/reviews/fsguard-lsan-linux.md`，`g7-lsan-record` rc=0 |
+| 规范 pin | 已收口（FSG-04，2026-11-17） | `AGENTS.md` 生成块与 `docs/spec/ai-coding-workflow.md` 刷新到 `1.15.0`；`sync-agents.sh --check AGENTS.md` rc=0 |
 
 ## 4 R 状态
 
