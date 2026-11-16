@@ -1,3 +1,6 @@
 .ctbuild/
 # D-014：依赖走 dep + ct.lock（共享包根），vendor/ 是本地临时落盘，不入库
 vendor/
+
+# 9.8 DB-4：会话临时产物只写本项目 .temp/，不入库
+.temp/

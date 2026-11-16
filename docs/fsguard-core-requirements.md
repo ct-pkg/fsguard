@@ -1,7 +1,10 @@
 # ct-fsguard 核心需求（用户视角）
 
-> 状态：只读回顾，基线 `46e7196`。依据 `docs/requirements.md`（R-01…R-17）、`docs/proposal.md`、`docs/analysis.md`、`README.md`，缺口编号沿用 [需求盘点](reviews/fsguard-requirements-audit.md)。
+> 状态：**历史只读回顾，基线 `46e7196`，已归档**。依据当时的 `docs/requirements.md`、`proposal.md`、`analysis.md` 与 `README.md`。
 > 本文按"用户拿这个包做什么"重组，不改原条目；原文与判据仍以 `requirements.md` 为准。
+> **归档说明（2026-11-17）**：文中的 `状态：待定` 是 46e7196 时的状态，已被后续决策取代——
+> Q-3 → D-003、Q-6 → D-002、Q-7 → D-005、Q-2 → D-006、Q-5 → D-001；现行状态见
+> `docs/acceptance/fsguard-status.md` 与 `docs/phases/PH-05/card.md`。
 
 ## 0 一句话结论
 
